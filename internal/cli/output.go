@@ -32,6 +32,11 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	return enc.Encode(v)
 }
 
+func writeJSONLine(cmd *cobra.Command, v any) error {
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	return enc.Encode(v)
+}
+
 func writeOK(cmd *cobra.Command, flags *rootFlags, action string, extra map[string]any) error {
 	if !isJSON(flags) {
 		return nil

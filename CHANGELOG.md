@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.11] - 2025-12-13
+
+### Added
+- `sonos watch --name "<Room>"`:
+  - UPnP event subscriptions (`AVTransport`, `RenderingControl`) with a local callback server.
+  - `--format json` prints one event object per line; `--format tsv` prints one row per variable change.
+
 ## [0.1.10] - 2025-12-13
 
 ### Added

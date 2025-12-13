@@ -81,6 +81,12 @@ Key services/actions:
 
 - `sonos play|pause|stop|next|prev --name "<Room>"`
 
+### Watch (events)
+
+- `sonos watch --name "<Room>" [--duration 30s]`
+  - Subscribes to `AVTransport` and `RenderingControl` UPnP events and prints changes as they arrive.
+  - `--format json` prints one JSON object per line (stream-friendly).
+
 ### Volume / mute
 
 - `sonos volume get|set --name "<Room>" <0-100>`

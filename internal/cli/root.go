@@ -76,6 +76,7 @@ func Execute() error {
 	rootCmd.AddCommand(newQueueCmd(flags))
 	rootCmd.AddCommand(newVolumeCmd(flags))
 	rootCmd.AddCommand(newMuteCmd(flags))
+	rootCmd.AddCommand(newWatchCmd(flags))
 
 	ctx := context.Background()
 	rootCmd.SetContext(ctx)

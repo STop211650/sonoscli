@@ -60,6 +60,16 @@ Playback:
 ./sonos prev --name "Kitchen"
 ```
 
+Watch live events (track/volume changes):
+
+```bash
+./sonos watch --name "Kitchen"
+./sonos watch --name "Kitchen" --format json
+./sonos watch --name "Kitchen" --format tsv
+```
+
+Note: this starts a local callback server for UPnP events; your OS firewall may prompt to allow incoming connections.
+
 ## Queue
 
 List the queue:

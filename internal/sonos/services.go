@@ -6,6 +6,8 @@ const (
 	controlGroupRendering    = "/MediaRenderer/GroupRenderingControl/Control"
 	controlContentDirectory  = "/MediaServer/ContentDirectory/Control"
 	controlZoneGroupTopology = "/ZoneGroupTopology/Control"
+	eventAVTransport         = "/MediaRenderer/AVTransport/Event"
+	eventRenderingControl    = "/MediaRenderer/RenderingControl/Event"
 	urnAVTransport           = "urn:schemas-upnp-org:service:AVTransport:1"
 	urnRenderingControl      = "urn:schemas-upnp-org:service:RenderingControl:1"
 	urnGroupRenderingControl = "urn:schemas-upnp-org:service:GroupRenderingControl:1"

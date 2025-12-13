@@ -98,6 +98,8 @@ Legend:
   - `sonos watch --name "<Room>"` (stream live changes: track/volume/transport)
 - Notes:
   - Requires UPnP eventing server on the CLI machine and subscriptions to `AVTransport`/`RenderingControl`.
+ - Status:
+   - Implemented in `0.1.11` (prints events as they arrive; `--format json` uses one JSON object per line).
 
 10) **Sonos-side music-service browsing/search**
 - Value: High | Effort: L | Deps: music service linked in Sonos
