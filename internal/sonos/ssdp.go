@@ -20,6 +20,19 @@ type ssdpResult struct {
 	Server   string
 }
 
+type ssdpUDPConn interface {
+	WriteToUDP(b []byte, addr *net.UDPAddr) (int, error)
+	ReadFromUDP(b []byte) (int, *net.UDPAddr, error)
+	SetReadDeadline(t time.Time) error
+	Close() error
+}
+
+var ssdpListenUDP = func(network string, laddr *net.UDPAddr) (ssdpUDPConn, error) {
+	return net.ListenUDP(network, laddr)
+}
+
+var ssdpNow = time.Now
+
 func ssdpDiscover(ctx context.Context, timeout time.Duration) ([]ssdpResult, error) {
 	// SSDP M-SEARCH for Sonos ZonePlayer devices.
 	payload := strings.Join([]string{
@@ -31,7 +44,7 @@ func ssdpDiscover(ctx context.Context, timeout time.Duration) ([]ssdpResult, err
 		"", "",
 	}, "\r\n")
 
-	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	conn, err := ssdpListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +60,13 @@ func ssdpDiscover(ctx context.Context, timeout time.Duration) ([]ssdpResult, err
 	}
 	slog.Debug("ssdp: sent M-SEARCH", "dst", dst.String())
 
-	deadline := time.Now().Add(timeout)
+	deadline := ssdpNow().Add(timeout)
 	byLocation := map[string]ssdpResult{}
 
 	buf := make([]byte, 64*1024)
 Loop:
 	for {
-		if time.Now().After(deadline) {
+		if ssdpNow().After(deadline) {
 			break
 		}
 		select {
@@ -66,7 +79,7 @@ Loop:
 		default:
 		}
 
-		_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+		_ = conn.SetReadDeadline(ssdpNow().Add(200 * time.Millisecond))
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
