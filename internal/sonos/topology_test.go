@@ -41,3 +41,29 @@ func TestParseZoneGroupStateXML(t *testing.T) {
 		t.Fatalf("satellite parse: %v %+v", ok, mem)
 	}
 }
+
+func TestParseZoneGroupStateXML_NamePrefersVisibleOverSatellite(t *testing.T) {
+	payload := `
+	<ZoneGroupState>
+	  <ZoneGroups>
+	    <ZoneGroup Coordinator="RINCON_ABC1400" ID="RINCON_ABC1400:1">
+	      <ZoneGroupMember ZoneName="Kitchen" UUID="RINCON_ABC1400" Location="http://192.168.1.10:1400/xml/device_description.xml" Invisible="0" />
+	      <ZoneGroupMember ZoneName="Living Room" UUID="RINCON_DEF1400" Location="http://192.168.1.11:1400/xml/device_description.xml" Invisible="0">
+	        <Satellite ZoneName="Living Room" UUID="RINCON_SAT1400" Location="http://192.168.1.12:1400/xml/device_description.xml" Invisible="1" />
+	      </ZoneGroupMember>
+	    </ZoneGroup>
+	  </ZoneGroups>
+	</ZoneGroupState>`
+
+	top, err := parseZoneGroupStateXML(payload)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	mem, ok := top.FindByName("Living Room")
+	if !ok {
+		t.Fatalf("expected FindByName to succeed")
+	}
+	if mem.IP != "192.168.1.11" || !mem.IsVisible {
+		t.Fatalf("expected visible member (192.168.1.11) but got %+v", mem)
+	}
+}

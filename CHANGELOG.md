@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.22] - 2025-12-13
+
+### Fixed
+- Speaker name resolution now prefers visible rooms over invisible/bonded devices when names collide (common with home-theater surrounds), fixing commands like `sonos group solo --name "Living Room"` selecting the wrong device.
+
 ## [0.1.21] - 2025-12-13
 
 ### Fixed

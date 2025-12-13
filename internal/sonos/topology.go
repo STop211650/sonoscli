@@ -83,6 +83,29 @@ func parseZoneGroupStateXML(payload string) (Topology, error) {
 		coordByUUID: map[string]Member{},
 	}
 
+	setByName := func(mem Member) {
+		if mem.Name == "" {
+			return
+		}
+		existing, ok := t.ByName[mem.Name]
+		if !ok {
+			t.ByName[mem.Name] = mem
+			return
+		}
+		// Prefer visible rooms over invisible/bonded devices (satellites, subs, etc).
+		if existing.IsVisible && !mem.IsVisible {
+			return
+		}
+		if !existing.IsVisible && mem.IsVisible {
+			t.ByName[mem.Name] = mem
+			return
+		}
+		// If both have the same visibility, prefer a coordinator entry.
+		if mem.IsCoordinator && !existing.IsCoordinator {
+			t.ByName[mem.Name] = mem
+		}
+	}
+
 	for _, g := range groups {
 		members := make([]Member, 0, len(g.Members))
 		var coordinator Member
@@ -93,9 +116,7 @@ func parseZoneGroupStateXML(payload string) (Topology, error) {
 					coordinator = mem
 				}
 				members = append(members, mem)
-				if mem.Name != "" {
-					t.ByName[mem.Name] = mem
-				}
+				setByName(mem)
 				t.ByIP[mem.IP] = mem
 				if mem.UUID != "" {
 					t.byUUID[mem.UUID] = mem
@@ -111,9 +132,7 @@ func parseZoneGroupStateXML(payload string) (Topology, error) {
 				// Satellites cannot be coordinators.
 				smem.IsCoordinator = false
 				members = append(members, smem)
-				if smem.Name != "" {
-					t.ByName[smem.Name] = smem
-				}
+				setByName(smem)
 				t.ByIP[smem.IP] = smem
 				if smem.UUID != "" {
 					t.byUUID[smem.UUID] = smem
