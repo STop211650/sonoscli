@@ -4,16 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
-## [0.1.25] - 2025-12-13
+## [0.1.27] - 2025-12-13
 
-### Added
-- New auth grouping: `sonos auth smapi begin|complete` (SMAPI DeviceLink/AppLink).
-  - Backwards-compatible: `sonos smapi auth ...` still works but is hidden from help output.
+### Fixed
+- `sonos stop` no longer errors on sources that reject stop with UPnP `701` (e.g. TV input); it’s treated as a no-op.
 
 ## [0.1.26] - 2025-12-13
 
 ### Fixed
 - `sonos prev` now restarts the current track (seek to `0:00:00`) when the source rejects `Previous` (UPnP `701`/`711`), instead of failing.
+
+## [0.1.25] - 2025-12-13
+
+### Added
+- New auth grouping: `sonos auth smapi begin|complete` (SMAPI DeviceLink/AppLink).
+  - Backwards-compatible: `sonos smapi auth ...` still works but is hidden from help output.
 
 ## [0.1.24] - 2025-12-13
 
