@@ -19,7 +19,11 @@ Spotify:
 - Spotify must already be linked in the Sonos app.
 - This CLI does not authenticate with Spotify; it enqueues Sonos “Spotify” URIs/metadata.
 
-Spotify search (optional):
+Spotify search (recommended, no Spotify Web API credentials):
+- `sonos smapi search` uses Sonos SMAPI to search linked services (e.g. Spotify).
+- Some services require a one-time DeviceLink/AppLink flow: `sonos smapi auth begin|complete`.
+
+Spotify search via Spotify Web API (optional):
 - If you want `sonos search spotify`, you’ll need a Spotify Web API app (client credentials).
   Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` (or pass `--client-id/--client-secret`).
 
@@ -244,7 +248,21 @@ Most commands must be sent to the *group coordinator* (the device that owns tran
 
 ## Spotify
 
-Search for items (prints playable URIs):
+Search via Sonos (SMAPI; no Spotify Web API credentials):
+
+```bash
+./sonos smapi services
+./sonos smapi auth begin --service "Spotify"
+# open the printed URL in a browser, link your account, then:
+./sonos smapi auth complete --service "Spotify" --code <linkCode>
+
+./sonos smapi search --service "Spotify" --category tracks "gareth emery"
+./sonos smapi search --service "Spotify" --category tracks --open --name "Office" "gareth emery"
+```
+
+SMAPI tokens are stored under your user config dir as `sonoscli/smapi_tokens.json` (e.g. `~/.config/sonoscli/smapi_tokens.json` on macOS/Linux).
+
+Search via Spotify Web API (prints playable URIs):
 
 ```bash
 export SPOTIFY_CLIENT_ID="..."

@@ -8,13 +8,13 @@ This document describes the overall architecture, command surface, and key imple
 - Provide fast, scriptable playback control from the terminal.
 - Be coordinator-aware so commands behave like the Sonos controller apps.
 - Support Spotify enqueue/play without requiring Spotify credentials (using Sonos-linked Spotify).
-- Optionally support Spotify search (requires Spotify Web API credentials).
+- Support Sonos-side music-service search (SMAPI) when services are linked in the Sonos app.
+- Optionally support Spotify search via Spotify Web API (requires credentials).
 - Keep the implementation small, modern Go, and easy to extend.
 
 Non-goals (for now):
-- Full music-service browsing (Sonos SMAPI catalog browsing is large/complex).
-- Advanced queue management (reorder, remove, browse full queue, etc.).
-- Event subscriptions / real-time state updates.
+- Full music-service browsing trees (Sonos SMAPI catalog browsing is large/complex and service-dependent).
+- Full credential management (keychain/encryption, profiles) beyond the current local token store.
 
 ## High-level Architecture
 
@@ -139,6 +139,14 @@ Implementation detail: we generate Sonos-compatible DIDL metadata similar to SoC
   - Requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` (or `--client-id/--client-secret`).
   - Prints `spotify:<type>:<id>` URIs usable with `sonos open` / `sonos enqueue`.
   - `--open` / `--enqueue` optionally play/enqueue the selected result (`--index`).
+
+### Sonos-side music-service search (SMAPI; no Spotify Web API credentials)
+
+Spotify must be linked in the Sonos app. Some services also require a one-time DeviceLink/AppLink flow.
+
+- `sonos smapi services` – list available services and auth types.
+- `sonos smapi auth begin|complete --service "Spotify"` – link your account for SMAPI access.
+- `sonos smapi search --service "Spotify" --category tracks "<query>"` – prints canonical Spotify URIs usable with `sonos open` / `sonos enqueue`.
 
 ### Grouping
 

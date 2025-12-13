@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.12] - 2025-12-13
+
+### Added
+- Sonos-side music-service search via SMAPI (no Spotify Web API credentials required):
+  - `sonos smapi services` to list available services and auth types.
+  - `sonos smapi auth begin|complete --service "Spotify"` for DeviceLink/AppLink linking.
+  - `sonos smapi search --service "Spotify" --category tracks "<query>"` to print canonical Spotify URIs (e.g. `spotify:track:...`).
+  - Optional `--open/--enqueue` to immediately play/enqueue a selected search result on a target speaker (`--name/--ip`, `--index`).
+- Local SMAPI token store under your user config dir (`~/.config/sonoscli/smapi_tokens.json`, mode `0600`).
+
 ## [0.1.11] - 2025-12-13
 
 ### Added

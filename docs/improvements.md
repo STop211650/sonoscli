@@ -107,6 +107,8 @@ Legend:
   - Search/browse via Sonos (SMAPI) so you can find Spotify content without Spotify Web API credentials.
 - Notes:
   - This is more complex and service-dependent.
+ - Status:
+   - Implemented in `0.1.12` as `sonos smapi ...` (services list + DeviceLink/AppLink auth + search).
 
 11) **Credential/config management**
 - Value: Med | Effort: M | Deps: none

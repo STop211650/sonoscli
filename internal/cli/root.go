@@ -25,8 +25,8 @@ func Execute() error {
 	rootCmd := &cobra.Command{
 		Use:          "sonos",
 		Short:        "Control Sonos speakers from the command line",
-		Long:         "Control Sonos speakers over your local network (UPnP/SOAP): discover devices, show status, control playback, and enqueue Spotify items.",
-		Example:      "  sonos discover\n  sonos status --name \"Kitchen\"\n  sonos search spotify \"miles davis so what\"\n  sonos open --name \"Kitchen\" spotify:track:6NmXV4o6bmp704aPGyTVVG\n  sonos volume set --name \"Kitchen\" 25",
+		Long:         "Control Sonos speakers over your local network (UPnP/SOAP): discover devices, show status, control playback, manage groups/queue, and play Spotify (plus Sonos-side SMAPI search).",
+		Example:      "  sonos discover\n  sonos status --name \"Kitchen\"\n  sonos smapi search --service \"Spotify\" --category tracks \"miles davis\"\n  sonos open --name \"Kitchen\" spotify:track:6NmXV4o6bmp704aPGyTVVG\n  sonos volume set --name \"Kitchen\" 25",
 		SilenceUsage: true,
 		Version:      Version,
 	}
@@ -67,6 +67,7 @@ func Execute() error {
 	rootCmd.AddCommand(newOpenCmd(flags))
 	rootCmd.AddCommand(newEnqueueCmd(flags))
 	rootCmd.AddCommand(newSearchCmd(flags))
+	rootCmd.AddCommand(newSMAPICmd(flags))
 	rootCmd.AddCommand(newGroupCmd(flags))
 	rootCmd.AddCommand(newSceneCmd(flags))
 	rootCmd.AddCommand(newFavoritesCmd(flags))

@@ -1,0 +1,384 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/spf13/cobra"
+	"github.com/steipete/sonoscli/internal/sonos"
+)
+
+func newSMAPICmd(flags *rootFlags) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "smapi",
+		Short: "Sonos music-service browsing/search via SMAPI",
+		Long: "SMAPI lets Sonos controllers browse/search linked music services (e.g. Spotify) without Spotify Web API credentials. " +
+			"Some services require a one-time DeviceLink/AppLink authentication flow before search works.",
+	}
+
+	cmd.AddCommand(newSMAPIServicesCmd(flags))
+	cmd.AddCommand(newSMAPIAuthCmd(flags))
+	cmd.AddCommand(newSMAPISearchCmd(flags))
+	return cmd
+}
+
+func anySpeakerClient(ctx context.Context, flags *rootFlags) (*sonos.Client, error) {
+	if strings.TrimSpace(flags.IP) != "" {
+		return sonos.NewClient(strings.TrimSpace(flags.IP), flags.Timeout), nil
+	}
+
+	devs, err := sonos.Discover(ctx, sonos.DiscoverOptions{Timeout: flags.Timeout})
+	if err != nil {
+		return nil, err
+	}
+	if len(devs) == 0 {
+		return nil, errors.New("no speakers found")
+	}
+	if strings.TrimSpace(flags.Name) == "" {
+		return sonos.NewClient(devs[0].IP, flags.Timeout), nil
+	}
+
+	// Prefer topology resolution by name (more reliable than SSDP name matching).
+	c := sonos.NewClient(devs[0].IP, flags.Timeout)
+	top, err := c.GetTopology(ctx)
+	if err != nil {
+		return c, nil
+	}
+	mem, ok := top.FindByName(flags.Name)
+	if !ok {
+		// Try case-insensitive match.
+		for k, v := range top.ByName {
+			if strings.EqualFold(k, flags.Name) {
+				mem = v
+				ok = true
+				break
+			}
+		}
+	}
+	if ok && mem.IP != "" {
+		return sonos.NewClient(mem.IP, flags.Timeout), nil
+	}
+	return nil, errors.New("speaker name not found: " + flags.Name)
+}
+
+func newSMAPIServicesCmd(flags *rootFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "services",
+		Short: "List available Sonos music services",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			c, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := c.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			sort.Slice(services, func(i, j int) bool {
+				return strings.ToLower(services[i].Name) < strings.ToLower(services[j].Name)
+			})
+
+			if isJSON(flags) {
+				return writeJSON(cmd, map[string]any{
+					"speakerIP": c.IP,
+					"services":  services,
+				})
+			}
+
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			_, _ = fmt.Fprintln(w, "NAME\tAUTH\tID\tSERVICETYPE\tSECURE_URI")
+			for _, s := range services {
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.Auth, s.ID, s.ServiceType, s.SecureURI)
+			}
+			return w.Flush()
+		},
+	}
+}
+
+func newSMAPIAuthCmd(flags *rootFlags) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "auth",
+		Short: "Authenticate a Sonos music service (DeviceLink/AppLink)",
+	}
+	cmd.AddCommand(newSMAPIAuthBeginCmd(flags))
+	cmd.AddCommand(newSMAPIAuthCompleteCmd(flags))
+	return cmd
+}
+
+func findServiceByName(services []sonos.MusicServiceDescriptor, name string) (sonos.MusicServiceDescriptor, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return sonos.MusicServiceDescriptor{}, errors.New("--service is required")
+	}
+	var exact *sonos.MusicServiceDescriptor
+	for i := range services {
+		s := services[i]
+		if strings.EqualFold(strings.TrimSpace(s.Name), name) {
+			exact = &s
+			break
+		}
+	}
+	if exact != nil {
+		return *exact, nil
+	}
+	// Try substring match.
+	var matches []sonos.MusicServiceDescriptor
+	for _, s := range services {
+		if strings.Contains(strings.ToLower(s.Name), strings.ToLower(name)) {
+			matches = append(matches, s)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		names := make([]string, 0, len(matches))
+		for _, m := range matches {
+			names = append(names, m.Name)
+		}
+		sort.Strings(names)
+		return sonos.MusicServiceDescriptor{}, fmt.Errorf("ambiguous --service %q; matches: %s", name, strings.Join(names, ", "))
+	}
+	return sonos.MusicServiceDescriptor{}, errors.New("service not found: " + name)
+}
+
+func newSMAPIAuthBeginCmd(flags *rootFlags) *cobra.Command {
+	var serviceName string
+	cmd := &cobra.Command{
+		Use:   "begin",
+		Short: "Start a music-service linking flow",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			speaker, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := speaker.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			svc, err := findServiceByName(services, serviceName)
+			if err != nil {
+				return err
+			}
+
+			store, err := sonos.NewDefaultSMAPITokenStore()
+			if err != nil {
+				return err
+			}
+			sm, err := sonos.NewSMAPIClient(ctx, speaker, svc, store)
+			if err != nil {
+				return err
+			}
+			res, err := sm.BeginAuthentication(ctx)
+			if err != nil {
+				return err
+			}
+
+			if isJSON(flags) {
+				return writeJSON(cmd, map[string]any{
+					"speakerIP": speaker.IP,
+					"service":   svc,
+					"auth":      res,
+				})
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Service: %s\n", svc.Name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open this URL and link your account:\n  %s\n", res.RegURL)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Then run:\n  sonos smapi auth complete --service %q --code %s\n", svc.Name, res.LinkCode)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
+	return cmd
+}
+
+func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
+	var (
+		serviceName  string
+		linkCode     string
+		linkDeviceID string
+	)
+	cmd := &cobra.Command{
+		Use:   "complete",
+		Short: "Complete a music-service linking flow and store tokens",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			speaker, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := speaker.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			svc, err := findServiceByName(services, serviceName)
+			if err != nil {
+				return err
+			}
+
+			store, err := sonos.NewDefaultSMAPITokenStore()
+			if err != nil {
+				return err
+			}
+			sm, err := sonos.NewSMAPIClient(ctx, speaker, svc, store)
+			if err != nil {
+				return err
+			}
+			pair, err := sm.CompleteAuthentication(ctx, linkCode, linkDeviceID)
+			if err != nil {
+				return err
+			}
+
+			if isJSON(flags) {
+				return writeJSON(cmd, map[string]any{
+					"speakerIP": speaker.IP,
+					"service":   svc,
+					"token":     pair,
+				})
+			}
+
+			return writeOK(cmd, flags, "smapi_auth_complete", map[string]any{
+				"speakerIP":   speaker.IP,
+				"serviceName": svc.Name,
+				"updatedAt":   pair.UpdatedAt,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
+	cmd.Flags().StringVar(&linkCode, "code", "", "Link code from `sonos smapi auth begin`")
+	cmd.Flags().StringVar(&linkDeviceID, "link-device-id", "", "Optional link device id (returned by begin; usually not needed)")
+	_ = cmd.MarkFlagRequired("code")
+	return cmd
+}
+
+func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
+	var (
+		serviceName string
+		category    string
+		limit       int
+		doOpen      bool
+		doEnqueue   bool
+		index       int
+	)
+	cmd := &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search a linked Sonos music service (SMAPI)",
+		Long: "Searches a linked service (e.g. Spotify) via Sonos SMAPI. " +
+			"Does not require Spotify Web API credentials, but may require `sonos smapi auth ...` once per household/service.",
+		Args:         cobra.MinimumNArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if doOpen && doEnqueue {
+				return errors.New("use only one of --open or --enqueue")
+			}
+			if (doOpen || doEnqueue) && flags.IP == "" && flags.Name == "" {
+				return errors.New("--open/--enqueue require --ip or --name")
+			}
+			if index <= 0 {
+				index = 1
+			}
+
+			ctx := cmd.Context()
+			speaker, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := speaker.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			svc, err := findServiceByName(services, serviceName)
+			if err != nil {
+				return err
+			}
+
+			store, err := sonos.NewDefaultSMAPITokenStore()
+			if err != nil {
+				return err
+			}
+			sm, err := sonos.NewSMAPIClient(ctx, speaker, svc, store)
+			if err != nil {
+				return err
+			}
+
+			query := strings.TrimSpace(strings.Join(args, " "))
+			res, err := sm.Search(ctx, category, query, 0, limit)
+			if err != nil {
+				return err
+			}
+			flat := append([]sonos.SMAPIItem{}, res.MediaMetadata...)
+			flat = append(flat, res.MediaCollection...)
+			if len(flat) == 0 {
+				return errors.New("no results")
+			}
+
+			if doOpen || doEnqueue {
+				if index > len(flat) {
+					return fmt.Errorf("--index %d out of range (got %d results)", index, len(flat))
+				}
+				selected := flat[index-1]
+				ref := selected.ID
+				if _, ok := sonos.ParseSpotifyRef(ref); !ok {
+					return errors.New("selected result is not a supported Spotify ref: " + ref)
+				}
+				c, err := newSonosEnqueuer(cmd.Context(), flags)
+				if err != nil {
+					return err
+				}
+				_, err = c.EnqueueSpotify(ctx, ref, sonos.EnqueueOptions{
+					PlayNow: doOpen,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			if isJSON(flags) {
+				if doOpen || doEnqueue {
+					selected := flat[index-1]
+					return writeJSON(cmd, map[string]any{
+						"speakerIP": speaker.IP,
+						"service":   svc,
+						"category":  category,
+						"query":     query,
+						"result":    res,
+						"selected":  selected,
+						"action": map[string]any{
+							"enqueue": true,
+							"playNow": doOpen,
+						},
+					})
+				}
+				return writeJSON(cmd, map[string]any{
+					"speakerIP": speaker.IP,
+					"service":   svc,
+					"category":  category,
+					"query":     query,
+					"result":    res,
+				})
+			}
+
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			_, _ = fmt.Fprintln(w, "INDEX\tTYPE\tTITLE\tID")
+			for i, r := range flat {
+				_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", i+1, r.ItemType, r.Title, r.ID)
+			}
+			return w.Flush()
+		},
+	}
+
+	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
+	cmd.Flags().StringVar(&category, "category", "tracks", "Search category (service dependent, e.g. tracks|albums|artists|playlists)")
+	cmd.Flags().IntVar(&limit, "limit", 10, "Max results (1-200 depending on service)")
+	cmd.Flags().BoolVar(&doOpen, "open", false, "Open the selected result on Sonos (requires --name/--ip)")
+	cmd.Flags().BoolVar(&doEnqueue, "enqueue", false, "Enqueue the selected result on Sonos (requires --name/--ip)")
+	cmd.Flags().IntVar(&index, "index", 1, "Which search result to use with --open/--enqueue (1-based)")
+
+	return cmd
+}
