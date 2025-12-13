@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.1] - 2025-12-13
+
+### Added
+- `sonos search spotify "<query>"`:
+  - Searches Spotify via Spotify Web API client credentials and prints playable `spotify:<type>:<id>` URIs.
+  - Supports `--type track|album|playlist|show|episode`, `--limit`, optional `--market`.
+  - Optional `--open` / `--enqueue` to immediately play/enqueue a selected result on Sonos (`--index`).
+  - Credentials via `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` or `--client-id` / `--client-secret`.
+
 ## [0.1.0] - 2025-12-13
 
 ### Added

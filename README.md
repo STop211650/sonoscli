@@ -19,6 +19,10 @@ Spotify:
 - Spotify must already be linked in the Sonos app.
 - This CLI does not authenticate with Spotify; it enqueues Sonos “Spotify” URIs/metadata.
 
+Spotify search (optional):
+- If you want `sonos search spotify`, you’ll need a Spotify Web API app (client credentials).
+  Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` (or pass `--client-id/--client-secret`).
+
 ## Install / build
 
 Build a local binary:
@@ -75,6 +79,22 @@ Most commands must be sent to the *group coordinator* (the device that owns tran
 
 ## Spotify
 
+Search for items (prints playable URIs):
+
+```bash
+export SPOTIFY_CLIENT_ID="..."
+export SPOTIFY_CLIENT_SECRET="..."
+
+./sonos search spotify --type track --limit 5 "daft punk harder better"
+./sonos search spotify --type playlist "focus"
+```
+
+Open the first search result directly on Sonos:
+
+```bash
+./sonos search spotify --open --name "Kitchen" "miles davis so what"
+```
+
 Enqueue + play:
 
 ```bash
@@ -124,6 +144,7 @@ pnpm lint
 pnpm sonos -- discover
 pnpm sonos -- status --name "Kitchen"
 pnpm sonos -- open --name "Kitchen" spotify:track:6NmXV4o6bmp704aPGyTVVG
+pnpm sonos -- search spotify "miles davis so what"
 ```
 
 CI runs: `gofmt` check, `go vet`, `go test`, and `golangci-lint`.
@@ -159,4 +180,3 @@ https://github.com/SoCo/SoCo
 ## License
 
 See `LICENSE`.
-

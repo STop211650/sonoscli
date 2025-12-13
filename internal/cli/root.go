@@ -24,7 +24,7 @@ func Execute() error {
 		Use:          "sonos",
 		Short:        "Control Sonos speakers from the command line",
 		Long:         "Control Sonos speakers over your local network (UPnP/SOAP): discover devices, show status, control playback, and enqueue Spotify items.",
-		Example:      "  sonos discover\n  sonos status --name \"Kitchen\"\n  sonos open --name \"Kitchen\" spotify:track:6NmXV4o6bmp704aPGyTVVG\n  sonos volume set --name \"Kitchen\" 25",
+		Example:      "  sonos discover\n  sonos status --name \"Kitchen\"\n  sonos search spotify \"miles davis so what\"\n  sonos open --name \"Kitchen\" spotify:track:6NmXV4o6bmp704aPGyTVVG\n  sonos volume set --name \"Kitchen\" 25",
 		SilenceUsage: true,
 		Version:      Version,
 	}
@@ -45,6 +45,7 @@ func Execute() error {
 	rootCmd.AddCommand(newPrevCmd(flags))
 	rootCmd.AddCommand(newOpenCmd(flags))
 	rootCmd.AddCommand(newEnqueueCmd(flags))
+	rootCmd.AddCommand(newSearchCmd(flags))
 	rootCmd.AddCommand(newVolumeCmd(flags))
 	rootCmd.AddCommand(newMuteCmd(flags))
 
