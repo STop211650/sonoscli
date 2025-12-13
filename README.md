@@ -59,6 +59,28 @@ Playback:
 ./sonos prev --name "Kitchen"
 ```
 
+## Queue
+
+List the queue:
+
+```bash
+./sonos queue list --name "Kitchen"
+./sonos queue list --name "Kitchen" --json
+```
+
+Play or remove a queue entry (positions are 1-based):
+
+```bash
+./sonos queue play --name "Kitchen" 1
+./sonos queue remove --name "Kitchen" 3
+```
+
+Clear the queue:
+
+```bash
+./sonos queue clear --name "Kitchen"
+```
+
 ## Grouping
 
 Show current groups:
@@ -179,6 +201,7 @@ pnpm sonos -- status --name "Kitchen"
 pnpm sonos -- open --name "Kitchen" spotify:track:6NmXV4o6bmp704aPGyTVVG
 pnpm sonos -- search spotify "miles davis so what"
 pnpm sonos -- group status
+pnpm sonos -- queue list --name "Kitchen"
 ```
 
 CI runs: `gofmt` check, `go vet`, `go test`, and `golangci-lint`.

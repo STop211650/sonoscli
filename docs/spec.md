@@ -86,6 +86,13 @@ Key services/actions:
 - `sonos volume get|set --name "<Room>" <0-100>`
 - `sonos mute get|on|off|toggle --name "<Room>"`
 
+### Queue
+
+- `sonos queue list --name "<Room>" [--start N] [--limit N]` (and `--json`)
+- `sonos queue play --name "<Room>" <pos>` (1-based)
+- `sonos queue remove --name "<Room>" <pos>` (1-based)
+- `sonos queue clear --name "<Room>"`
+
 ### Spotify (no Spotify credentials required)
 
 Spotify must already be linked in the Sonos app.
@@ -157,4 +164,3 @@ SoCo (Python) is a major reference for Sonos protocol patterns and music-service
 ```text
 https://github.com/SoCo/SoCo
 ```
-

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.3] - 2025-12-13
+
+### Added
+- Queue management:
+  - `sonos queue list --name "<Room>" [--start N] [--limit N]` (and `--json`)
+  - `sonos queue play --name "<Room>" <pos>` (1-based)
+  - `sonos queue remove --name "<Room>" <pos>` (1-based)
+  - `sonos queue clear --name "<Room>"`
+
 ## [0.1.2] - 2025-12-13
 
 ### Added

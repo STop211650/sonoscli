@@ -18,6 +18,8 @@ Legend:
   - `sonos queue remove --name "<Room>" <index>`
 - Notes:
   - Uses UPnP `ContentDirectory.Browse` (queue container `Q:0`) and `AVTransport.RemoveTrackFromQueue` / `RemoveAllTracksFromQueue` / `Seek TRACK_NR`.
+ - Status:
+   - Implemented in `0.1.3` (CLI uses 1-based positions).
 
 2) **Better “now playing” metadata**
 - Value: High | Effort: M | Deps: none
@@ -103,4 +105,3 @@ Legend:
   - Rich metadata (covers/artist lists) even when Sonos doesn’t provide it cleanly
 - Not required:
   - `sonos open/enqueue` for Spotify when you already have a Spotify URI/share link and Spotify is linked in the Sonos app.
-

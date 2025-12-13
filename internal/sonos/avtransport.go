@@ -79,6 +79,22 @@ func (c *Client) BecomeCoordinatorOfStandaloneGroup(ctx context.Context) error {
 	return err
 }
 
+func (c *Client) RemoveAllTracksFromQueue(ctx context.Context) error {
+	_, err := c.soapCall(ctx, controlAVTransport, urnAVTransport, "RemoveAllTracksFromQueue", map[string]string{
+		"InstanceID": "0",
+	})
+	return err
+}
+
+func (c *Client) RemoveTrackFromQueue(ctx context.Context, oneBasedTrackNumber int) error {
+	_, err := c.soapCall(ctx, controlAVTransport, urnAVTransport, "RemoveTrackFromQueue", map[string]string{
+		"InstanceID": "0",
+		"ObjectID":   "Q:0/" + strconv.Itoa(oneBasedTrackNumber),
+		"UpdateID":   "0",
+	})
+	return err
+}
+
 func (c *Client) AddURIToQueue(ctx context.Context, enqueuedURI, enqueuedMeta string, desiredFirstTrackNumber int, enqueueAsNext bool) (firstTrackNumber int, err error) {
 	asNext := "0"
 	if enqueueAsNext {
