@@ -29,6 +29,12 @@ Spotify search via Spotify Web API (optional):
 
 ## Install / build
 
+Install (Homebrew):
+
+```bash
+brew install steipete/tap/sonoscli
+```
+
 Build a local binary:
 
 ```bash
