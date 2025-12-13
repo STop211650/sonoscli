@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"strings"
@@ -44,6 +45,7 @@ func ssdpDiscover(ctx context.Context, timeout time.Duration) ([]ssdpResult, err
 			return nil, err
 		}
 	}
+	slog.Debug("ssdp: sent M-SEARCH", "dst", dst.String())
 
 	deadline := time.Now().Add(timeout)
 	byLocation := map[string]ssdpResult{}
@@ -78,6 +80,7 @@ Loop:
 		if !ok || res.Location == "" {
 			continue
 		}
+		slog.Debug("ssdp: response", "location", res.Location, "usn", res.USN, "server", res.Server)
 		byLocation[res.Location] = res
 	}
 

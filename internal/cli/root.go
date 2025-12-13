@@ -62,6 +62,10 @@ func newRootCmd() (*cobra.Command, *rootFlags, error) {
 	rootCmd.SetVersionTemplate("sonos {{.Version}}\n")
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if flags.Debug {
+			enableDebugLogging()
+		}
+
 		format := strings.TrimSpace(flags.Format)
 		if format == "" {
 			format = formatPlain

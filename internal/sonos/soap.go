@@ -6,9 +6,11 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 )
 
 type UPnPError struct {
@@ -32,8 +34,11 @@ func soapCall(ctx context.Context, httpClient *http.Client, endpointURL, service
 	req.Header.Set("Content-Type", `text/xml; charset="utf-8"`)
 	req.Header.Set("SOAPACTION", fmt.Sprintf("%q", serviceURN+"#"+action))
 
+	start := time.Now()
+	slog.Debug("soap: request", "action", action, "endpoint", endpointURL)
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		slog.Debug("soap: request failed", "action", action, "endpoint", endpointURL, "elapsed", time.Since(start).String(), "err", err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -42,6 +47,7 @@ func soapCall(ctx context.Context, httpClient *http.Client, endpointURL, service
 	if err != nil {
 		return nil, err
 	}
+	slog.Debug("soap: response", "action", action, "endpoint", endpointURL, "status", resp.StatusCode, "bytes", len(raw), "elapsed", time.Since(start).String())
 
 	if resp.StatusCode == 200 {
 		return parseSOAPResponse(raw)

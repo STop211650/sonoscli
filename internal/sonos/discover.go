@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"sort"
@@ -32,6 +33,8 @@ func Discover(ctx context.Context, opts DiscoverOptions) ([]Device, error) {
 		timeout = 5 * time.Second
 	}
 
+	slog.Debug("discover: start", "timeout", timeout.String(), "includeInvisible", opts.IncludeInvisible)
+
 	opCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -49,21 +52,27 @@ func Discover(ctx context.Context, opts DiscoverOptions) ([]Device, error) {
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
+	slog.Debug("discover: ssdp finished", "timeout", ssdpTimeout.String(), "results", len(ssdpResults), "err", errString(err))
 
 	// Prefer the topology-based approach (query one speaker for the full list),
 	// since not every speaker will reliably respond to SSDP M-SEARCH.
 	out, err := discoverViaTopologyFunc(opCtx, timeout, ssdpResults, opts.IncludeInvisible)
 	if err == nil && len(out) > 0 {
+		slog.Debug("discover: topology via ssdp candidates succeeded", "devices", len(out))
 		return out, nil
 	}
+	slog.Debug("discover: topology via ssdp candidates failed", "err", errString(err))
 
 	// SSDP sometimes fails or returns incomplete results on certain networks.
 	// Fall back to finding any reachable Sonos speaker, then query topology.
 	if anyIP, scanErr := scanAnySpeakerIPFunc(opCtx, timeout); scanErr == nil && anyIP != "" {
+		slog.Debug("discover: subnet scan found a speaker", "ip", anyIP)
 		out, topErr := discoverViaTopologyFromIPFunc(opCtx, timeout, anyIP, opts.IncludeInvisible)
 		if topErr == nil && len(out) > 0 {
+			slog.Debug("discover: topology via scanned speaker succeeded", "devices", len(out))
 			return out, nil
 		}
+		slog.Debug("discover: topology via scanned speaker failed", "ip", anyIP, "err", errString(topErr))
 	}
 
 	// Fallback: resolve each SSDP response directly.
@@ -103,6 +112,7 @@ func discoverViaTopologyFromIP(ctx context.Context, timeout time.Duration, ip st
 	c := NewClient(ip, timeout)
 	top, err := c.GetTopology(ctx)
 	if err != nil {
+		slog.Debug("discover: GetTopology failed", "ip", ip, "err", errString(err))
 		return nil, err
 	}
 
@@ -144,6 +154,8 @@ func discoverViaTopology(ctx context.Context, timeout time.Duration, results []s
 		return nil, errors.New("no ssdp candidates")
 	}
 
+	slog.Debug("discover: querying topology candidates", "candidates", len(candidates))
+
 	// Query multiple candidates and keep the best (largest) result, to account
 	// for devices that may return incomplete topology snapshots.
 	deadline := time.Now().Add(timeout)
@@ -155,6 +167,7 @@ func discoverViaTopology(ctx context.Context, timeout time.Duration, results []s
 		c := NewClient(ip, timeout)
 		top, err := c.GetTopology(ctx)
 		if err != nil {
+			slog.Debug("discover: topology candidate failed", "ip", ip, "err", errString(err))
 			continue
 		}
 
@@ -181,6 +194,7 @@ func discoverViaTopology(ctx context.Context, timeout time.Duration, results []s
 	}
 
 	if len(bestByIP) > 0 {
+		slog.Debug("discover: topology candidates result", "devices", len(bestByIP))
 		return sortDevices(bestByIP), nil
 	}
 	return nil, errors.New("topology discovery failed")
@@ -235,6 +249,7 @@ func scanAnySpeakerIP(ctx context.Context, timeout time.Duration) (string, error
 	if len(addrs) == 0 {
 		return "", errors.New("no local IPv4 addresses found")
 	}
+	slog.Debug("discover: subnet scan start", "interfaces", len(addrs))
 
 	// Keep per-IP operations quick; we only need one match.
 	httpClient := defaultHTTPClient(2 * time.Second)
@@ -304,10 +319,18 @@ func scanAnySpeakerIP(ctx context.Context, timeout time.Duration) (string, error
 
 	select {
 	case ip := <-found:
+		slog.Debug("discover: subnet scan found speaker", "ip", ip)
 		return ip, nil
 	default:
 		return "", errors.New("no sonos speakers found on local subnets")
 	}
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func localIPv4Addrs() ([]net.IP, error) {
