@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -26,12 +27,24 @@ func newDiscoverCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
+			if devices == nil {
+				devices = []sonos.Device{}
+			}
+
 			sort.Slice(devices, func(i, j int) bool {
 				if devices[i].Name == devices[j].Name {
 					return devices[i].IP < devices[j].IP
 				}
 				return devices[i].Name < devices[j].Name
 			})
+
+			if len(devices) == 0 {
+				// JSON output has a sensible empty representation (`[]`) for scripts.
+				if isJSON(flags) {
+					return writeJSON(cmd, devices)
+				}
+				return errors.New("no speakers found (try increasing --timeout)")
+			}
 
 			if isJSON(flags) {
 				return writeJSON(cmd, devices)

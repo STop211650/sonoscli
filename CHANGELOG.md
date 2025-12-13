@@ -81,6 +81,7 @@
 ### Changed
 - `sonos group status` hides invisible/bonded devices by default (use `--all` to include them).
 - `sonos auth smapi complete --wait ...` prints progress while waiting (so it doesn’t look hung).
+- `sonos discover` now returns a non-zero exit status when no speakers are found in non-JSON output modes (instead of silently printing nothing).
 
 ### Fixed
 - Speaker name resolution prefers visible rooms over invisible/bonded devices when names collide (common with home-theater surrounds), fixing commands like `sonos group solo --name "Living Room"` selecting the wrong device.

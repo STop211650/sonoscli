@@ -102,3 +102,51 @@ func TestDiscoverJSONOutput(t *testing.T) {
 		t.Fatalf("expected JSON output only, got: %s", s)
 	}
 }
+
+func TestDiscoverNoDevicesPlainErrors(t *testing.T) {
+	flags := &rootFlags{Timeout: 5 * time.Second, Format: formatPlain}
+	cmd := newDiscoverCmd(flags)
+
+	orig := discoverFunc
+	t.Cleanup(func() { discoverFunc = orig })
+	discoverFunc = func(ctx context.Context, opts sonos.DiscoverOptions) ([]sonos.Device, error) {
+		return nil, nil
+	}
+
+	cmd.SetOut(newDiscardWriter())
+	cmd.SetErr(newDiscardWriter())
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "no speakers found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDiscoverNoDevicesJSONOutputsEmptyArray(t *testing.T) {
+	flags := &rootFlags{Timeout: 5 * time.Second, Format: formatJSON}
+	cmd := newDiscoverCmd(flags)
+
+	orig := discoverFunc
+	t.Cleanup(func() { discoverFunc = orig })
+	discoverFunc = func(ctx context.Context, opts sonos.DiscoverOptions) ([]sonos.Device, error) {
+		return nil, nil
+	}
+
+	var out captureWriter
+	cmd.SetOut(&out)
+	cmd.SetErr(newDiscardWriter())
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(out.String()) != "[]" {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
