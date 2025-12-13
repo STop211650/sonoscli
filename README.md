@@ -105,6 +105,27 @@ List / delete scenes:
 
 Scenes are stored in your user config dir as `sonoscli/scenes.json` (e.g. `~/.config/sonoscli/scenes.json` on macOS/Linux).
 
+## Favorites
+
+List Sonos Favorites:
+
+```bash
+./sonos favorites list --name "Kitchen"
+./sonos favorites list --name "Kitchen" --json
+```
+
+Play by index (from the list):
+
+```bash
+./sonos favorites open --name "Kitchen" --index 1
+```
+
+Or play by title (case-insensitive exact match):
+
+```bash
+./sonos favorites open --name "Kitchen" "BBC Radio 6 Music"
+```
+
 ## Grouping
 
 Show current groups:

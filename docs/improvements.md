@@ -61,6 +61,8 @@ Legend:
   - `sonos favorites open --name "<Room>" "<favorite title>"` (or by index)
 - Notes:
   - Favorites are available via `ContentDirectory.Browse` (e.g. `FV:2`), and often include metadata needed to play.
+ - Status:
+   - Implemented in `0.1.7`.
 
 6) **Music sources (radio / TuneIn / URI play)**
 - Value: Med | Effort: M | Deps: depends on source

@@ -48,6 +48,7 @@ func Execute() error {
 	rootCmd.AddCommand(newSearchCmd(flags))
 	rootCmd.AddCommand(newGroupCmd(flags))
 	rootCmd.AddCommand(newSceneCmd(flags))
+	rootCmd.AddCommand(newFavoritesCmd(flags))
 	rootCmd.AddCommand(newQueueCmd(flags))
 	rootCmd.AddCommand(newVolumeCmd(flags))
 	rootCmd.AddCommand(newMuteCmd(flags))

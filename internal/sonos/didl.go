@@ -15,6 +15,7 @@ type DIDLItem struct {
 	Artist      string `json:"artist,omitempty"`
 	Album       string `json:"album,omitempty"`
 	AlbumArtURI string `json:"albumArtURI,omitempty"`
+	ResMD       string `json:"resMD,omitempty"`
 }
 
 func ParseDIDLItems(didlXML string) ([]DIDLItem, error) {
@@ -87,6 +88,10 @@ func parseDIDLItem(dec *xml.Decoder, start xml.StartElement) (DIDLItem, error) {
 			case "res":
 				if it.URI == "" {
 					it.URI = val
+				}
+			case "resmd":
+				if it.ResMD == "" {
+					it.ResMD = val
 				}
 			case "class":
 				if it.Class == "" {

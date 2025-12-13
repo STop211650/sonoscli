@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.7] - 2025-12-13
+
+### Added
+- Sonos Favorites:
+  - `sonos favorites list --name "<Room>" [--start N] [--limit N]` (and `--json`)
+  - `sonos favorites open --name "<Room>" --index <N>` or `sonos favorites open --name "<Room>" "<title>"`
+
 ## [0.1.6] - 2025-12-13
 
 ### Added

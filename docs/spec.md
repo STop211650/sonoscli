@@ -93,6 +93,12 @@ Key services/actions:
 - `sonos queue remove --name "<Room>" <pos>` (1-based)
 - `sonos queue clear --name "<Room>"`
 
+### Favorites
+
+- `sonos favorites list --name "<Room>" [--start N] [--limit N]` (and `--json`)
+- `sonos favorites open --name "<Room>" --index <N>`
+- `sonos favorites open --name "<Room>" "<title>"`
+
 ### Scenes
 
 - `sonos scene save <name>` – capture grouping + per-room volume/mute
