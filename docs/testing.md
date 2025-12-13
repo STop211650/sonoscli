@@ -196,8 +196,8 @@ Expected: prints a completion script to stdout.
 
 Fill this in when doing an end-to-end run.
 
-- Date: `2025-12-13T15:28:48Z`
-- Commit SHA: `abb0d8d`
+- Date: `2025-12-13T16:00:38Z`
+- Commit SHA: `475f920`
 - Network: `192.168.0.0/24`
 - Discovery result (rooms found): `Bar, Bedroom, Hallway, Kitchen, Living Room, Master Bathroom, Office, Pantry`
 - Notes/issues:
@@ -209,5 +209,7 @@ Fill this in when doing an end-to-end run.
   - Verified: `group solo` on a soundbar room name works even when bonded devices share the same room name.
   - Verified: `sonos tv` works after making the soundbar a standalone coordinator.
   - Verified: `sonos linein` works on a Sonos Five.
+  - Verified: `sonos open` plays a Spotify album link on `Office` after `sonos group dissolve --name Bar` (only `Office` plays).
   - Verified: `sonos watch` prints follow-up events for volume changes.
-  - Restored original grouping at end via `sonos scene apply __restore_testplan` + delete.
+  - Verified: `sonos --debug discover` prints SSDP/topology/SOAP trace logs (useful when multicast is blocked and discovery falls back).
+  - Restored original grouping at end via `sonos scene save __restore_testplan`, then `apply` + `delete`.
