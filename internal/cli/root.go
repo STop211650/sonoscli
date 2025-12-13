@@ -101,6 +101,7 @@ func newRootCmd() (*cobra.Command, *rootFlags, error) {
 	rootCmd.AddCommand(newOpenCmd(flags))
 	rootCmd.AddCommand(newEnqueueCmd(flags))
 	rootCmd.AddCommand(newSearchCmd(flags))
+	rootCmd.AddCommand(newAuthCmd(flags))
 	rootCmd.AddCommand(newSMAPICmd(flags))
 	rootCmd.AddCommand(newGroupCmd(flags))
 	rootCmd.AddCommand(newSceneCmd(flags))

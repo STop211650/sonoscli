@@ -25,7 +25,7 @@ func newSMAPICmd(flags *rootFlags) *cobra.Command {
 	cmd.AddCommand(newSMAPIServicesCmd(flags))
 	cmd.AddCommand(newSMAPICategoriesCmd(flags))
 	cmd.AddCommand(newSMAPIBrowseCmd(flags))
-	cmd.AddCommand(newSMAPIAuthCmd(flags))
+	cmd.AddCommand(newSMAPIAuthCmd(flags)) // kept for backwards-compat; hidden below
 	cmd.AddCommand(newSMAPISearchCmd(flags))
 	return cmd
 }
@@ -156,8 +156,9 @@ func newSMAPICategoriesCmd(flags *rootFlags) *cobra.Command {
 
 func newSMAPIAuthCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "auth",
-		Short: "Authenticate a Sonos music service (DeviceLink/AppLink)",
+		Use:    "auth",
+		Short:  "Authenticate a Sonos music service (DeviceLink/AppLink)",
+		Hidden: true, // use `sonos auth smapi ...`
 	}
 	cmd.AddCommand(newSMAPIAuthBeginCmd(flags))
 	cmd.AddCommand(newSMAPIAuthCompleteCmd(flags))
@@ -246,7 +247,7 @@ func newSMAPIAuthBeginCmd(flags *rootFlags) *cobra.Command {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open this URL and link your account:\n  %s\n", res.RegURL)
 			_, _ = fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"Then run:\n  sonos smapi auth complete --service %q --code %s --wait 5m\n",
+				"Then run:\n  sonos auth smapi complete --service %q --code %s --wait 5m\n",
 				svc.Name,
 				res.LinkCode,
 			)
@@ -311,7 +312,7 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 			})
 			if err != nil {
 				if isSMAPIInvalidLinkCode(err) {
-					return fmt.Errorf("link code is invalid or expired; re-run `sonos smapi auth begin` and use the new code: %w", err)
+					return fmt.Errorf("link code is invalid or expired; re-run `sonos auth smapi begin` and use the new code: %w", err)
 				}
 				return err
 			}
@@ -336,7 +337,7 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
-	cmd.Flags().StringVar(&linkCode, "code", "", "Link code from `sonos smapi auth begin`")
+	cmd.Flags().StringVar(&linkCode, "code", "", "Link code from `sonos auth smapi begin`")
 	cmd.Flags().StringVar(&linkDeviceID, "link-device-id", "", "Optional link device id (returned by begin; usually not needed)")
 	cmd.Flags().DurationVar(&wait, "wait", 0, "Wait up to this duration for linking to complete (polls periodically)")
 	_ = cmd.MarkFlagRequired("code")

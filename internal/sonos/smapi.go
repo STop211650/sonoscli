@@ -533,7 +533,7 @@ func (c *SMAPIClient) buildCredentialsHeader(allowUnauthed bool) (string, error)
 				return "", err
 			}
 			if !ok {
-				return "", errors.New("service not authenticated: run `sonos smapi auth begin`/`complete`")
+				return "", errors.New("service not authenticated: run `sonos auth smapi begin`/`complete`")
 			}
 			creds.WriteString(`<loginToken>`)
 			creds.WriteString(`<token>`)
