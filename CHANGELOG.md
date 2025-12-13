@@ -7,7 +7,11 @@ The format is based on “Keep a Changelog”, and this project aims to follow S
 ## [0.1.0] - 2025-12-13
 
 ### Added
-- `sonos discover` (SSDP) with optional `--json` output.
+- `sonos discover`:
+  - SSDP M-SEARCH discovery (fast path).
+  - Topology discovery via `ZoneGroupTopology.GetZoneGroupState` (reliable path; finds all rooms).
+  - Fallback subnet scan (checks port `1400`, verifies `device_description.xml`) for networks where SSDP is blocked/unreliable.
+  - Optional `--json` output.
 - Coordinator-aware targeting via `--name` / `--ip` (commands sent to the group coordinator when possible).
 - `sonos status` with text and `--json` output (transport + position + volume/mute).
 - Transport controls: `sonos play`, `pause`, `stop`, `next`, `prev`.
@@ -19,8 +23,10 @@ The format is based on “Keep a Changelog”, and this project aims to follow S
   - Supports `spotify:<type>:<id>` and common `open.spotify.com/...` share URLs.
   - Tries Sonos Spotify service numbers `2311` and `3079`.
 - `--version` support (prints `sonos 0.1.0`).
-- Formatter/linter/dev tooling:
-  - `Makefile` targets: `fmt`, `fmt-check`, `test`, `lint`, `ci`
+- Developer tooling:
+  - `Makefile` targets: `fmt`, `fmt-check`, `test`, `build`, `lint`, `ci`
   - `.golangci.yml` for `golangci-lint`
+  - `package.json` pnpm helper scripts: `pnpm sonos`, `pnpm build`, `pnpm test`, `pnpm format`, `pnpm lint`
 - GitHub Actions CI (format check, `go vet`, tests, `golangci-lint`).
 - Tests for key parsers and SOAP helpers (SSDP, ZoneGroupState, Spotify refs, SOAP response/error parsing).
+- `.gitignore` improvements (macOS `.DS_Store`, pnpm/node artifacts, common Go build outputs).
