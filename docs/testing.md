@@ -168,8 +168,8 @@ SMAPI is Sonos-side browsing/search for linked services (e.g. Spotify). It may r
 - `sonos smapi search --service "Spotify" --category tracks "miles davis"`
 
 If auth is required:
-- `sonos smapi auth begin --service "Spotify"` (follow the `regUrl` and link code)
-- `sonos smapi auth complete --service "Spotify" --code "<linkCode>" --wait 2m`
+- `sonos auth smapi begin --service "Spotify"` (follow the `regUrl` and link code)
+- `sonos auth smapi complete --service "Spotify" --code "<linkCode>" --wait 2m`
 
 Expected:
 - Categories show at least `tracks`, `albums`, `artists`, `playlists` for Spotify.
@@ -204,7 +204,7 @@ Fill this in when doing an end-to-end run.
   - Verified: `sonos discover` finds all rooms reliably (SSDP + topology; falls back to subnet scan if multicast is blocked).
   - Verified: `sonos group solo --name Office` isolates `Office` as its own group.
   - Verified: `sonos open --name Office https://open.spotify.com/album/4o9BvaaFDTBLFxzK70GT1E?...` starts playback on **Office only**.
-  - Verified: `sonos smapi search --service Spotify --category tracks "gareth emery"` works after one-time auth (`sonos smapi auth begin` + `sonos smapi auth complete --wait ...`).
+  - Verified: `sonos smapi search --service Spotify --category tracks "gareth emery"` works after one-time auth (`sonos auth smapi begin` + `sonos auth smapi complete --wait ...`).
   - `sonos favorites list` requires a target via `--name`/`--ip`.
   - `sonos discover --all` shows bonded/hidden devices (multiple IPs per room name), which is expected on this system.
   - Verified: `sonos config set defaultRoom Office` makes `--name` optional for commands that require a target.

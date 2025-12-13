@@ -21,7 +21,7 @@ Spotify:
 
 Spotify search (recommended, no Spotify Web API credentials):
 - `sonos smapi search` uses Sonos SMAPI to search linked services (e.g. Spotify).
-- Some services require a one-time DeviceLink/AppLink flow: `sonos smapi auth begin|complete`.
+- Some services require a one-time DeviceLink/AppLink flow: `sonos auth smapi begin|complete`.
 
 Spotify search via Spotify Web API (optional):
 - If you want `sonos search spotify`, you’ll need a Spotify Web API app (client credentials).
@@ -262,9 +262,9 @@ Search via Sonos (SMAPI; no Spotify Web API credentials):
 ./sonos smapi services
 ./sonos smapi categories --service "Spotify"
 ./sonos smapi browse --service "Spotify" --id root
-./sonos smapi auth begin --service "Spotify"
+./sonos auth smapi begin --service "Spotify"
 # open the printed URL in a browser, link your account, then:
-./sonos smapi auth complete --service "Spotify" --code <linkCode> --wait 5m
+./sonos auth smapi complete --service "Spotify" --code <linkCode> --wait 5m
 
 ./sonos smapi search --service "Spotify" --category tracks "gareth emery"
 ./sonos smapi search --service "Spotify" --category tracks --open --name "Office" "gareth emery"
