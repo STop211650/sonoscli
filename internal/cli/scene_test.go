@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,9 +14,20 @@ import (
 type fakeSceneStore struct {
 	scenes map[string]scenes.Scene
 	put    scenes.Scene
+
+	listCalls   int
+	deleteCalls int
+	deletedName string
 }
 
-func (f *fakeSceneStore) List() ([]scenes.SceneMeta, error) { return nil, nil }
+func (f *fakeSceneStore) List() ([]scenes.SceneMeta, error) {
+	f.listCalls++
+	out := make([]scenes.SceneMeta, 0, len(f.scenes))
+	for _, s := range f.scenes {
+		out = append(out, scenes.SceneMeta{Name: s.Name, CreatedAt: s.CreatedAt})
+	}
+	return out, nil
+}
 
 func (f *fakeSceneStore) Get(name string) (scenes.Scene, bool, error) {
 	sc, ok := f.scenes[name]
@@ -31,7 +43,12 @@ func (f *fakeSceneStore) Put(scene scenes.Scene) error {
 	return nil
 }
 
-func (f *fakeSceneStore) Delete(name string) error { return nil }
+func (f *fakeSceneStore) Delete(name string) error {
+	f.deleteCalls++
+	f.deletedName = name
+	delete(f.scenes, name)
+	return nil
+}
 
 type fakeSceneTopologyGetter struct {
 	top sonos.Topology
@@ -277,5 +294,63 @@ func TestSceneApplyMissingScene(t *testing.T) {
 	cmd.SilenceUsage = true
 	if err := cmd.ExecuteContext(context.Background()); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestSceneListPlain(t *testing.T) {
+	flags := &rootFlags{Timeout: 2 * time.Second, Format: formatPlain}
+	cmd := newSceneCmd(flags)
+
+	store := &fakeSceneStore{scenes: map[string]scenes.Scene{
+		"Morning": {Name: "Morning", CreatedAt: time.Date(2025, 12, 13, 0, 0, 0, 0, time.UTC)},
+	}}
+
+	origStore := newSceneStore
+	t.Cleanup(func() { newSceneStore = origStore })
+	newSceneStore = func() (scenes.Store, error) { return store, nil }
+
+	var out captureWriter
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"list"})
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.listCalls != 1 {
+		t.Fatalf("expected listCalls=1, got %d", store.listCalls)
+	}
+	if !strings.Contains(out.String(), "Morning") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestSceneDeleteJSON(t *testing.T) {
+	flags := &rootFlags{Timeout: 2 * time.Second, Format: formatJSON}
+	cmd := newSceneCmd(flags)
+
+	store := &fakeSceneStore{scenes: map[string]scenes.Scene{
+		"Work": {Name: "Work"},
+	}}
+
+	origStore := newSceneStore
+	t.Cleanup(func() { newSceneStore = origStore })
+	newSceneStore = func() (scenes.Store, error) { return store, nil }
+
+	var out captureWriter
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"delete", "Work"})
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.deleteCalls != 1 || store.deletedName != "Work" {
+		t.Fatalf("expected delete Work once, got calls=%d name=%q", store.deleteCalls, store.deletedName)
+	}
+	if !strings.Contains(out.String(), "\"action\": \"scene.delete\"") {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }

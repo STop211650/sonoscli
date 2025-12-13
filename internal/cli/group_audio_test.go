@@ -145,3 +145,56 @@ func TestGroupMuteToggle(t *testing.T) {
 		t.Fatalf("expected set mute to false once, got calls=%d val=%v", fake.setMuteCalls, fake.setMuteValue)
 	}
 }
+
+func TestGroupMuteGetPlain(t *testing.T) {
+	flags := &rootFlags{Name: "Kitchen", Timeout: 2 * time.Second, Format: formatPlain}
+	cmd := newGroupMuteCmd(flags)
+
+	fake := &fakeGroupAudioClient{groupMute: true}
+	orig := newGroupAudioClient
+	t.Cleanup(func() { newGroupAudioClient = orig })
+	newGroupAudioClient = func(ctx context.Context, flags *rootFlags) (groupAudioClient, error) {
+		return fake, nil
+	}
+
+	var out captureWriter
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"get"})
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(out.String()) != "true" {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestGroupMuteOnJSON(t *testing.T) {
+	flags := &rootFlags{Name: "Kitchen", Timeout: 2 * time.Second, Format: formatJSON}
+	cmd := newGroupMuteCmd(flags)
+
+	fake := &fakeGroupAudioClient{groupMute: false}
+	orig := newGroupAudioClient
+	t.Cleanup(func() { newGroupAudioClient = orig })
+	newGroupAudioClient = func(ctx context.Context, flags *rootFlags) (groupAudioClient, error) {
+		return fake, nil
+	}
+
+	var out captureWriter
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"on"})
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.setMuteCalls != 1 || fake.setMuteValue != true {
+		t.Fatalf("expected set mute=true once, got calls=%d val=%v", fake.setMuteCalls, fake.setMuteValue)
+	}
+	if !strings.Contains(out.String(), `"action": "group.mute.on"`) {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}

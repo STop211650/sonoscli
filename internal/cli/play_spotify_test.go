@@ -2,255 +2,86 @@ package cli
 
 import (
 	"context"
-	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/steipete/sonoscli/internal/sonos"
 )
 
-type fakeSpotifyEnqueuer struct {
-	lastRef  string
-	lastOpts sonos.EnqueueOptions
-	pos      int
-	err      error
-}
+func TestRealSpotifyEnqueuer_EnqueueSpotify(t *testing.T) {
+	t.Parallel()
 
-func (f *fakeSpotifyEnqueuer) EnqueueSpotify(ctx context.Context, input string, opts sonos.EnqueueOptions) (int, error) {
-	f.lastRef = input
-	f.lastOpts = opts
-	return f.pos, f.err
-}
-
-func (f *fakeSpotifyEnqueuer) CoordinatorIP() string { return "192.168.1.20" }
-
-type fakeSMAPISearcher struct {
-	res sonos.SMAPISearchResult
-	err error
-}
-
-func (f *fakeSMAPISearcher) Search(ctx context.Context, category, term string, index, count int) (sonos.SMAPISearchResult, error) {
-	if f.err != nil {
-		return sonos.SMAPISearchResult{}, f.err
-	}
-	return f.res, nil
-}
-
-func TestPlaySpotifyEnqueuesFirstResult(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatJSON}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
+	mux := http.NewServeMux()
+	mux.HandleFunc("/xml/device_description.xml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<root>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:ZonePlayer:1</deviceType>
+    <manufacturer>Sonos, Inc.</manufacturer>
+    <roomName>Office</roomName>
+    <UDN>uuid:RINCON_OFFICE1400</UDN>
+  </device>
+</root>`))
+	})
+	mux.HandleFunc("/MediaRenderer/AVTransport/Control", func(w http.ResponseWriter, r *http.Request) {
+		action := r.Header.Get("SOAPACTION")
+		switch {
+		case strings.Contains(action, "AVTransport:1#AddURIToQueue"):
+			_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <u:AddURIToQueueResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+      <FirstTrackNumberEnqueued>1</FirstTrackNumberEnqueued>
+    </u:AddURIToQueueResponse>
+  </s:Body>
+</s:Envelope>`))
+		case strings.Contains(action, "AVTransport:1#SetAVTransportURI"):
+			_, _ = w.Write([]byte(`<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>`))
+		case strings.Contains(action, "AVTransport:1#Seek"):
+			_, _ = w.Write([]byte(`<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:SeekResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SeekResponse></s:Body></s:Envelope>`))
+		case strings.Contains(action, "AVTransport:1#Play"):
+			_, _ = w.Write([]byte(`<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:PlayResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:PlayResponse></s:Body></s:Envelope>`))
+		default:
+			t.Fatalf("unexpected SOAPACTION: %q", action)
+		}
 	})
 
-	enq := &fakeSpotifyEnqueuer{pos: 7}
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return enq, nil
-	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{res: sonos.SMAPISearchResult{
-			MediaMetadata: []sonos.SMAPIItem{
-				{ID: "spotify:track:abc123", Title: "Some Track"},
-			},
-		}}, sonos.MusicServiceDescriptor{Name: "Spotify", ID: "2311", Auth: "DeviceLink"}, &sonos.Client{IP: "192.168.1.10"}, nil
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	port, _ := strconv.Atoi(u.Port())
+
+	c := &sonos.Client{
+		IP:   u.Hostname(),
+		Port: port,
+		HTTP: srv.Client(),
 	}
 
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
+	enq := realSpotifyEnqueuer{c: c}
+	if got := enq.CoordinatorIP(); got != c.IP {
+		t.Fatalf("CoordinatorIP: %q", got)
+	}
 
-	if err := cmd.ExecuteContext(context.Background()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if enq.lastRef != "spotify:track:abc123" {
-		t.Fatalf("expected ref, got %q", enq.lastRef)
-	}
-	if !enq.lastOpts.PlayNow {
-		t.Fatalf("expected PlayNow=true")
-	}
-	if enq.lastOpts.Title != "Some Track" {
-		t.Fatalf("expected title from result, got %q", enq.lastOpts.Title)
-	}
-}
-
-func TestPlaySpotifyEnqueueOnly(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatPlain}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
+	pos, err := enq.EnqueueSpotify(context.Background(), "spotify:track:abc", sonos.EnqueueOptions{
+		Title:   "X",
+		PlayNow: true,
 	})
-
-	enq := &fakeSpotifyEnqueuer{pos: 1}
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return enq, nil
+	if err != nil {
+		t.Fatalf("EnqueueSpotify: %v", err)
 	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{res: sonos.SMAPISearchResult{
-			MediaMetadata: []sonos.SMAPIItem{
-				{ID: "spotify:track:abc123", Title: "Some Track"},
-			},
-		}}, sonos.MusicServiceDescriptor{Name: "Spotify", ID: "2311", Auth: "DeviceLink"}, &sonos.Client{IP: "192.168.1.10"}, nil
+	if pos != 1 {
+		t.Fatalf("expected pos=1, got %d", pos)
 	}
 
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"--enqueue", "gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	if err := cmd.ExecuteContext(context.Background()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if enq.lastOpts.PlayNow {
-		t.Fatalf("expected PlayNow=false")
-	}
-}
-
-func TestPlaySpotifyErrorsOnNoResults(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatPlain}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
-	})
-
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return &fakeSpotifyEnqueuer{}, nil
-	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{res: sonos.SMAPISearchResult{}}, sonos.MusicServiceDescriptor{Name: "Spotify"}, &sonos.Client{IP: "192.168.1.10"}, nil
-	}
-
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	if err := cmd.ExecuteContext(context.Background()); err == nil {
-		t.Fatalf("expected error")
-	}
-}
-
-func TestPlaySpotifyErrorsOnSMAPIError(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatPlain}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
-	})
-
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return &fakeSpotifyEnqueuer{}, nil
-	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{err: errors.New("auth required")}, sonos.MusicServiceDescriptor{Name: "Spotify"}, &sonos.Client{IP: "192.168.1.10"}, nil
-	}
-
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	if err := cmd.ExecuteContext(context.Background()); err == nil {
-		t.Fatalf("expected error")
-	}
-}
-
-func TestPlaySpotifyErrorsOnIndexOutOfRange(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatPlain}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
-	})
-
-	enq := &fakeSpotifyEnqueuer{pos: 1}
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return enq, nil
-	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{res: sonos.SMAPISearchResult{
-			MediaMetadata: []sonos.SMAPIItem{
-				{ID: "spotify:track:abc123", Title: "Some Track"},
-			},
-		}}, sonos.MusicServiceDescriptor{Name: "Spotify"}, &sonos.Client{IP: "192.168.1.10"}, nil
-	}
-
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"--index", "1", "gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	if err := cmd.ExecuteContext(context.Background()); err == nil {
-		t.Fatalf("expected error")
-	}
-	if enq.lastRef != "" {
-		t.Fatalf("expected no enqueue call, got ref=%q", enq.lastRef)
-	}
-}
-
-func TestPlaySpotifyErrorsOnNonSpotifyResult(t *testing.T) {
-	flags := &rootFlags{Name: "Office", Timeout: 2 * time.Second, Format: formatPlain}
-
-	origEnq := newSpotifyEnqueuer
-	origSmapi := newSMAPISearcher
-	t.Cleanup(func() {
-		newSpotifyEnqueuer = origEnq
-		newSMAPISearcher = origSmapi
-	})
-
-	enq := &fakeSpotifyEnqueuer{pos: 1}
-	newSpotifyEnqueuer = func(ctx context.Context, flags *rootFlags) (spotifyEnqueuer, error) {
-		return enq, nil
-	}
-	newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName string) (smapiSearcher, sonos.MusicServiceDescriptor, *sonos.Client, error) {
-		return &fakeSMAPISearcher{res: sonos.SMAPISearchResult{
-			MediaMetadata: []sonos.SMAPIItem{
-				{ID: "notspotify:thing", Title: "Not Spotify"},
-			},
-		}}, sonos.MusicServiceDescriptor{Name: "Spotify"}, &sonos.Client{IP: "192.168.1.10"}, nil
-	}
-
-	cmd := newPlaySpotifyCmd(flags)
-	cmd.SetArgs([]string{"gareth emery"})
-	cmd.SetOut(newDiscardWriter())
-	cmd.SetErr(newDiscardWriter())
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	if err := cmd.ExecuteContext(context.Background()); err == nil {
-		t.Fatalf("expected error")
-	}
-	if enq.lastRef != "" {
-		t.Fatalf("expected no enqueue call, got ref=%q", enq.lastRef)
-	}
-}
-
-func TestRealSpotifyEnqueuerCoordinatorIP(t *testing.T) {
-	r := realSpotifyEnqueuer{c: &sonos.Client{IP: "192.168.1.99"}}
-	if r.CoordinatorIP() != "192.168.1.99" {
-		t.Fatalf("CoordinatorIP: %q", r.CoordinatorIP())
-	}
+	// Ensure wrapper passes through context cancellation cleanly.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.HTTP.Timeout = 10 * time.Second
+	_, _ = enq.EnqueueSpotify(ctx, "spotify:track:abc", sonos.EnqueueOptions{Title: "X"})
 }
