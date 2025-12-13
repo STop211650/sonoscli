@@ -8,6 +8,8 @@ import (
 	"github.com/steipete/sonoscli/internal/sonos"
 )
 
+var discoverFunc = sonos.Discover
+
 func newDiscoverCmd(flags *rootFlags) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
@@ -16,7 +18,7 @@ func newDiscoverCmd(flags *rootFlags) *cobra.Command {
 		Long:  "Sends an SSDP M-SEARCH query and resolves each response to a speaker name via the device description endpoint.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			devices, err := sonos.Discover(ctx, sonos.DiscoverOptions{
+			devices, err := discoverFunc(ctx, sonos.DiscoverOptions{
 				Timeout:          flags.Timeout,
 				IncludeInvisible: all,
 			})
