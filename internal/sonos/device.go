@@ -58,10 +58,7 @@ func fetchDeviceDescription(ctx context.Context, httpClient *http.Client, locati
 	}
 
 	name = strings.TrimSpace(dd.Device.RoomName)
-	udn = strings.TrimSpace(dd.Device.UDN)
-	if strings.HasPrefix(udn, "uuid:") {
-		udn = strings.TrimPrefix(udn, "uuid:")
-	}
+	udn = strings.TrimPrefix(strings.TrimSpace(dd.Device.UDN), "uuid:")
 
 	ip, err = hostToIP(locationURL)
 	if err != nil {

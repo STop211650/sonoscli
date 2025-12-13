@@ -111,11 +111,10 @@ func (c *Client) EnqueueSpotify(ctx context.Context, input string, opts EnqueueO
 	}
 
 	title := opts.Title
-	meta := buildShareDIDL(itemIDKey+ref.EncodedID, title, itemClass, ref.ServiceNums[0])
 
 	var lastErr error
 	for _, serviceNum := range ref.ServiceNums {
-		meta = buildShareDIDL(itemIDKey+ref.EncodedID, title, itemClass, serviceNum)
+		meta := buildShareDIDL(itemIDKey+ref.EncodedID, title, itemClass, serviceNum)
 		for _, prefix := range uriPrefixes {
 			enqueuedURI := prefix + ref.EncodedID
 			first, err := c.AddURIToQueue(ctx, enqueuedURI, meta, desiredPos, opts.AsNext)
@@ -155,9 +154,6 @@ func spotifySonosMagic(kind SpotifyKind) (itemClass string, itemIDKey string, ur
 }
 
 func buildShareDIDL(itemID, title, itemClass string, serviceNum int) string {
-	if title == "" {
-		title = ""
-	}
 	// Mirrors the SoCo ShareLink plugin template.
 	// desc: SA_RINCON{sn}_X_#Svc{sn}-0-Token
 	desc := fmt.Sprintf("SA_RINCON%d_X_#Svc%d-0-Token", serviceNum, serviceNum)

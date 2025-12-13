@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -168,89 +169,6 @@ func sortDevices(byIP map[string]Device) []Device {
 	return out
 }
 
-func scanLocalSubnets(ctx context.Context, timeout time.Duration, includeInvisible bool) ([]Device, error) {
-	addrs, err := localIPv4Addrs()
-	if err != nil {
-		return nil, err
-	}
-	if len(addrs) == 0 {
-		return nil, errors.New("no local IPv4 addresses found")
-	}
-
-	httpClient := defaultHTTPClient(timeout)
-
-	byIP := map[string]Device{}
-	var byIPMu sync.Mutex
-
-	candidateIPs := make(chan string, 1024)
-	workers := 128
-	if workers < 1 {
-		workers = 1
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(workers)
-	for i := 0; i < workers; i++ {
-		go func() {
-			defer wg.Done()
-			for ip := range candidateIPs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-
-				if !isPortOpen(ip, 1400, 350*time.Millisecond) {
-					continue
-				}
-
-				location := fmt.Sprintf("http://%s:1400/xml/device_description.xml", ip)
-				name, udn, _, err := fetchDeviceDescription(ctx, httpClient, location)
-				if err != nil {
-					continue
-				}
-				if name == "" {
-					name = ip
-				}
-				if !includeInvisible {
-					// Best-effort: we don't have visibility info without topology. Keep it.
-				}
-
-				byIPMu.Lock()
-				byIP[ip] = Device{
-					IP:       ip,
-					Name:     name,
-					UDN:      udn,
-					Location: location,
-				}
-				byIPMu.Unlock()
-			}
-		}()
-	}
-
-	// Enumerate each /24 for each interface address.
-	seen := map[string]struct{}{}
-	for _, ip := range addrs {
-		prefix := ipTo24Prefix(ip)
-		if prefix == "" {
-			continue
-		}
-		if _, ok := seen[prefix]; ok {
-			continue
-		}
-		seen[prefix] = struct{}{}
-
-		for host := 1; host <= 254; host++ {
-			candidateIPs <- fmt.Sprintf("%s.%d", prefix, host)
-		}
-	}
-
-	close(candidateIPs)
-	wg.Wait()
-
-	return sortDevices(byIP), nil
-}
-
 func scanAnySpeakerIP(ctx context.Context, timeout time.Duration) (string, error) {
 	addrs, err := localIPv4Addrs()
 	if err != nil {
@@ -374,7 +292,7 @@ func ipTo24Prefix(ip net.IP) string {
 
 func isPortOpen(ip string, port int, timeout time.Duration) bool {
 	d := net.Dialer{Timeout: timeout}
-	conn, err := d.Dial("tcp", fmt.Sprintf("%s:%d", ip, port))
+	conn, err := d.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 	if err != nil {
 		return false
 	}
