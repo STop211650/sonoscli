@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/steipete/sonoscli/internal/sonos"
 )
 
@@ -352,5 +353,87 @@ func TestTransportPlayJSON(t *testing.T) {
 	got := strings.Join(calls, "\n")
 	if !strings.Contains(got, "AVTransport:1#Play") {
 		t.Fatalf("unexpected calls: %#v", calls)
+	}
+}
+
+func TestTransportPauseStopNextJSON(t *testing.T) {
+	actions := []struct {
+		name   string
+		cmdFn  func(*rootFlags) *cobra.Command
+		expect string
+		ok     func(out string) bool
+	}{
+		{
+			name:   "pause",
+			cmdFn:  newPauseCmd,
+			expect: "AVTransport:1#Pause",
+			ok:     func(out string) bool { return strings.Contains(out, `"action": "pause"`) },
+		},
+		{
+			name:   "stop",
+			cmdFn:  newStopCmd,
+			expect: "AVTransport:1#Stop",
+			ok:     func(out string) bool { return strings.Contains(out, `"action": "stop"`) },
+		},
+		{
+			name:   "next",
+			cmdFn:  newNextCmd,
+			expect: "AVTransport:1#Next",
+			ok:     func(out string) bool { return strings.Contains(out, `"action": "next"`) },
+		},
+	}
+
+	for _, tc := range actions {
+		t.Run(tc.name, func(t *testing.T) {
+			flags := &rootFlags{IP: "192.0.2.20", Timeout: 2 * time.Second, Format: formatJSON}
+			cmd := tc.cmdFn(flags)
+
+			var calls []string
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				action := r.Header.Get("SOAPACTION")
+				calls = append(calls, action)
+				switch {
+				case strings.Contains(action, "ZoneGroupTopology:1#GetZoneGroupState"):
+					return httpResponseWithStatus(500, ""), nil
+				case strings.Contains(action, tc.expect):
+					// Map the quoted SOAPACTION back to the raw method name for a response wrapper.
+					method := strings.TrimPrefix(tc.expect, "AVTransport:1#")
+					return httpResponseWithStatus(
+						200,
+						soapActionResponse("urn:schemas-upnp-org:service:AVTransport:1", method, ``),
+					), nil
+				default:
+					t.Fatalf("unexpected action: %q", action)
+					return nil, nil
+				}
+			})
+
+			oldNew := newSonosClient
+			t.Cleanup(func() { newSonosClient = oldNew })
+			newSonosClient = func(ip string, timeout time.Duration) *sonos.Client {
+				return &sonos.Client{
+					IP:   ip,
+					Port: 1400,
+					HTTP: &http.Client{Timeout: timeout, Transport: rt},
+				}
+			}
+
+			var out captureWriter
+			cmd.SetOut(&out)
+			cmd.SetErr(&out)
+			cmd.SetArgs([]string{})
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+			if err := cmd.ExecuteContext(context.Background()); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !tc.ok(out.String()) {
+				t.Fatalf("unexpected output: %q", out.String())
+			}
+			got := strings.Join(calls, "\n")
+			if !strings.Contains(got, tc.expect) {
+				t.Fatalf("missing expected call %q in %#v", tc.expect, calls)
+			}
+		})
 	}
 }

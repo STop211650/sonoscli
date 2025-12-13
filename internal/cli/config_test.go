@@ -98,6 +98,50 @@ func TestConfigSetRejectsInvalidFormat(t *testing.T) {
 	}
 }
 
+func TestConfigPathPlainAndJSON(t *testing.T) {
+	dir := t.TempDir()
+	store, err := appconfig.NewFileStore(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatalf("NewFileStore: %v", err)
+	}
+
+	orig := newConfigStore
+	t.Cleanup(func() { newConfigStore = orig })
+	newConfigStore = func() (appconfig.Store, error) { return store, nil }
+
+	{
+		flags := &rootFlags{Timeout: 2 * time.Second, Format: formatPlain}
+		cmd := newConfigPathCmd(flags)
+		var out captureWriter
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("path plain: %v", err)
+		}
+		if strings.TrimSpace(out.String()) != store.Path() {
+			t.Fatalf("unexpected path output: %q", out.String())
+		}
+	}
+
+	{
+		flags := &rootFlags{Timeout: 2 * time.Second, Format: formatJSON}
+		cmd := newConfigPathCmd(flags)
+		var out captureWriter
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("path json: %v", err)
+		}
+		if !strings.Contains(out.String(), store.Path()) || !strings.Contains(out.String(), "\"path\"") {
+			t.Fatalf("unexpected json output: %q", out.String())
+		}
+	}
+}
+
 func TestGetConfigKey(t *testing.T) {
 	cfg := appconfig.Config{DefaultRoom: "Office", Format: "json"}
 	if v, ok := getConfigKey(cfg, "defaultRoom"); !ok || v != "Office" {
