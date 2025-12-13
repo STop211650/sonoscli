@@ -4,16 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.25] - 2025-12-13
+
+### Added
+- New auth grouping: `sonos auth smapi begin|complete` (SMAPI DeviceLink/AppLink).
+  - Backwards-compatible: `sonos smapi auth ...` still works but is hidden from help output.
+
 ## [0.1.24] - 2025-12-13
 
 ### Changed
-- `sonos smapi auth complete --wait ...` now prints progress in plain output while waiting, so it doesn’t look hung.
+- `sonos auth smapi complete --wait ...` now prints progress in plain output while waiting, so it doesn’t look hung.
 
 ## [0.1.23] - 2025-12-13
 
 ### Added
 - `--debug` now enables detailed trace logs for SSDP discovery, topology queries, and SOAP calls to help diagnose flaky networks.
-- `sonos smapi auth complete --wait <duration>` to poll for account-link completion (handles Spotify `NOT_LINKED_RETRY`).
+- `sonos auth smapi complete --wait <duration>` to poll for account-link completion (handles Spotify `NOT_LINKED_RETRY`).
 
 ## [0.1.22] - 2025-12-13
 
@@ -43,7 +49,7 @@ The format is based on “Keep a Changelog”, and this project aims to follow S
   - Uses Sonos SMAPI search (no Spotify Web API credentials) to find Spotify content.
   - Enqueues and starts playback on the target room’s coordinator.
   - Supports `--category`, `--index`, `--enqueue`, `--service`, `--title`.
-  - Note: If Spotify isn’t authenticated for SMAPI on your Sonos system, run `sonos smapi auth begin|complete --service "Spotify"` first.
+  - Note: If Spotify isn’t authenticated for SMAPI on your Sonos system, run `sonos auth smapi begin|complete --service "Spotify"` first.
 
 ## [0.1.17] - 2025-12-13
 
@@ -83,7 +89,7 @@ The format is based on “Keep a Changelog”, and this project aims to follow S
 ### Added
 - Sonos-side music-service search via SMAPI (no Spotify Web API credentials required):
   - `sonos smapi services` to list available services and auth types.
-  - `sonos smapi auth begin|complete --service "Spotify"` for DeviceLink/AppLink linking.
+  - `sonos auth smapi begin|complete --service "Spotify"` for DeviceLink/AppLink linking.
   - `sonos smapi search --service "Spotify" --category tracks "<query>"` to print canonical Spotify URIs (e.g. `spotify:track:...`).
   - Optional `--open/--enqueue` to immediately play/enqueue a selected search result on a target speaker (`--name/--ip`, `--index`).
 - Local SMAPI token store under your user config dir (`~/.config/sonoscli/smapi_tokens.json`, mode `0600`).
