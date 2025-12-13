@@ -34,6 +34,9 @@ func Execute() error {
 	return nil
 }
 
+var newSonosClient = sonos.NewClient
+var sonosDiscover = sonos.Discover
+
 var loadAppConfig = func() (appconfig.Config, error) {
 	s, err := appconfig.NewDefaultStore()
 	if err != nil {
@@ -131,7 +134,7 @@ func resolveTargetCoordinatorIP(ctx context.Context, flags *rootFlags) (string, 
 
 	// If IP is provided, attempt to resolve to coordinator, but fall back.
 	if flags.IP != "" {
-		c := sonos.NewClient(flags.IP, flags.Timeout)
+		c := newSonosClient(flags.IP, flags.Timeout)
 		top, err := c.GetTopology(ctx)
 		if err != nil {
 			return flags.IP, nil
@@ -143,7 +146,7 @@ func resolveTargetCoordinatorIP(ctx context.Context, flags *rootFlags) (string, 
 	}
 
 	// Name-based selection: discover a speaker, then use topology.
-	devs, err := sonos.Discover(ctx, sonos.DiscoverOptions{Timeout: flags.Timeout})
+	devs, err := sonosDiscover(ctx, sonos.DiscoverOptions{Timeout: flags.Timeout})
 	if err != nil {
 		return "", err
 	}
@@ -151,7 +154,7 @@ func resolveTargetCoordinatorIP(ctx context.Context, flags *rootFlags) (string, 
 		return "", errors.New("no speakers found")
 	}
 
-	c := sonos.NewClient(devs[0].IP, flags.Timeout)
+	c := newSonosClient(devs[0].IP, flags.Timeout)
 	top, err := c.GetTopology(ctx)
 	if err != nil {
 		return "", err
@@ -168,5 +171,5 @@ func coordinatorClient(ctx context.Context, flags *rootFlags) (*sonos.Client, er
 	if err != nil {
 		return nil, err
 	}
-	return sonos.NewClient(ip, flags.Timeout), nil
+	return newSonosClient(ip, flags.Timeout), nil
 }

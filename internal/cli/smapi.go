@@ -32,10 +32,10 @@ func newSMAPICmd(flags *rootFlags) *cobra.Command {
 
 func anySpeakerClient(ctx context.Context, flags *rootFlags) (*sonos.Client, error) {
 	if strings.TrimSpace(flags.IP) != "" {
-		return sonos.NewClient(strings.TrimSpace(flags.IP), flags.Timeout), nil
+		return newSonosClient(strings.TrimSpace(flags.IP), flags.Timeout), nil
 	}
 
-	devs, err := sonos.Discover(ctx, sonos.DiscoverOptions{Timeout: flags.Timeout})
+	devs, err := sonosDiscover(ctx, sonos.DiscoverOptions{Timeout: flags.Timeout})
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +43,11 @@ func anySpeakerClient(ctx context.Context, flags *rootFlags) (*sonos.Client, err
 		return nil, errors.New("no speakers found")
 	}
 	if strings.TrimSpace(flags.Name) == "" {
-		return sonos.NewClient(devs[0].IP, flags.Timeout), nil
+		return newSonosClient(devs[0].IP, flags.Timeout), nil
 	}
 
 	// Prefer topology resolution by name (more reliable than SSDP name matching).
-	c := sonos.NewClient(devs[0].IP, flags.Timeout)
+	c := newSonosClient(devs[0].IP, flags.Timeout)
 	top, err := c.GetTopology(ctx)
 	if err != nil {
 		return c, nil
@@ -64,7 +64,7 @@ func anySpeakerClient(ctx context.Context, flags *rootFlags) (*sonos.Client, err
 		}
 	}
 	if ok && mem.IP != "" {
-		return sonos.NewClient(mem.IP, flags.Timeout), nil
+		return newSonosClient(mem.IP, flags.Timeout), nil
 	}
 	return nil, errors.New("speaker name not found: " + flags.Name)
 }
