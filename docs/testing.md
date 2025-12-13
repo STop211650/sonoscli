@@ -196,8 +196,8 @@ Expected: prints a completion script to stdout.
 
 Fill this in when doing an end-to-end run.
 
-- Date: `2025-12-13T17:51:49Z`
-- Commit SHA: `16546a6`
+- Date: `2025-12-13T17:55:22Z`
+- Commit SHA: `0253bd1`
 - Network: `192.168.0.0/24`
 - Discovery result (rooms found): `Bar, Bedroom, Hallway, Kitchen, Living Room, Master Bathroom, Office, Pantry`
 - Notes/issues:
@@ -238,4 +238,13 @@ Fill this in when doing an end-to-end run.
     - `sonos --format json discover` prints a JSON array.
     - `sonos --format json queue list --name Office` prints a JSON object with `items`.
   - Verified: `sonos discover --timeout 10ms` now returns a clear error (non-zero exit) when no speakers are found; `--format json` still prints `[]`.
+  - Verified: Group party/dissolve:
+    - `sonos group party --to Bar` joins all rooms into the Bar group.
+    - `sonos group dissolve --name Bar` returns rooms to standalone coordinators.
+  - Verified: Enqueue does not start playback:
+    - `sonos stop --name Office` then `sonos enqueue --name Office spotify:track:...` keeps `State: STOPPED`.
+    - `sonos queue play --name Office 1` starts playback.
+  - Verified: Volume boundaries:
+    - `sonos volume set --name Office 0` and `sonos volume set --name Office 100` work and reflect in `sonos volume get`.
+    - `sonos group volume set --name Office 0|100` works on a temporary `Office+Pantry` group.
   - Restored original state via `sonos --timeout 25s scene apply/delete __restore_continued_testing_2025_12_13_b`.
