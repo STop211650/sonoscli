@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.5] - 2025-12-13
+
+### Added
+- Group audio controls via `GroupRenderingControl`:
+  - `sonos group volume get|set --name "<Room>"`
+  - `sonos group mute get|on|off|toggle --name "<Room>"`
+
 ## [0.1.4] - 2025-12-13
 
 ### Added

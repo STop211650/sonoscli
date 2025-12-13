@@ -46,6 +46,8 @@ func newGroupCmd(flags *rootFlags) *cobra.Command {
 	cmd.AddCommand(newGroupStatusCmd(flags))
 	cmd.AddCommand(newGroupJoinCmd(flags))
 	cmd.AddCommand(newGroupUnjoinCmd(flags))
+	cmd.AddCommand(newGroupVolumeCmd(flags))
+	cmd.AddCommand(newGroupMuteCmd(flags))
 	return cmd
 }
 

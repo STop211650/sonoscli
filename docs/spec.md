@@ -123,6 +123,8 @@ Implementation detail: we generate Sonos-compatible DIDL metadata similar to SoC
   - Sends `AVTransport.SetAVTransportURI` to the *joining* speaker with `x-rincon:<COORDINATOR_UUID>`.
 - `sonos group unjoin --name "<Room>"`
   - Sends `AVTransport.BecomeCoordinatorOfStandaloneGroup` to the target speaker.
+- `sonos group volume get|set --name "<Room>" <0-100>`
+- `sonos group mute get|on|off|toggle --name "<Room>"`
 
 ## Coordinator Awareness
 

@@ -115,6 +115,16 @@ Re-join a speaker back into another group:
 ./sonos group join --name "Office" --to "Bar"
 ```
 
+Group volume / mute (affects the whole group):
+
+```bash
+./sonos group volume get --name "Living Room"
+./sonos group volume set --name "Living Room" 25
+
+./sonos group mute get --name "Living Room"
+./sonos group mute toggle --name "Living Room"
+```
+
 Volume / mute:
 
 ```bash

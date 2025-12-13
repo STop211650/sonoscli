@@ -38,6 +38,8 @@ Legend:
   - `sonos group mute get|on|off|toggle --name "<AnyMember>"`
 - Notes:
   - Uses `GroupRenderingControl` service (similar to SoCo patterns).
+ - Status:
+   - Implemented in `0.1.5`.
 
 4) **Presets / scenes**
 - Value: High | Effort: L | Deps: none

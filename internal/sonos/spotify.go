@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -183,22 +182,4 @@ func (c *Client) playFromQueueTrack(ctx context.Context, oneBasedTrackNumber int
 		return err
 	}
 	return c.Play(ctx)
-}
-
-func (c *Client) SetGroupVolume(ctx context.Context, volume int) error {
-	if volume < 0 {
-		volume = 0
-	}
-	if volume > 100 {
-		volume = 100
-	}
-	// SnapshotGroupVolume first (Sonos convention).
-	_, _ = c.soapCall(ctx, controlGroupRendering, urnGroupRenderingControl, "SnapshotGroupVolume", map[string]string{
-		"InstanceID": "0",
-	})
-	_, err := c.soapCall(ctx, controlGroupRendering, urnGroupRenderingControl, "SetGroupVolume", map[string]string{
-		"InstanceID":    "0",
-		"DesiredVolume": strconv.Itoa(volume),
-	})
-	return err
 }
