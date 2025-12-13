@@ -14,34 +14,39 @@ func TestSubscribeRenewUnsubscribe(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(eventAVTransport, func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "SUBSCRIBE":
-			if r.Header.Get("SID") != "" {
-				// renew
-				w.Header().Set("TIMEOUT", "Second-120")
+	handle := func(expectedSID string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "SUBSCRIBE":
+				if r.Header.Get("SID") != "" {
+					// renew
+					w.Header().Set("TIMEOUT", "Second-120")
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// initial subscribe
+				if r.Header.Get("NT") != "upnp:event" {
+					t.Fatalf("NT: %q", r.Header.Get("NT"))
+				}
+				if r.Header.Get("CALLBACK") == "" {
+					t.Fatalf("missing CALLBACK")
+				}
+				w.Header().Set("SID", expectedSID)
+				w.Header().Set("TIMEOUT", "Second-60")
 				w.WriteHeader(http.StatusOK)
-				return
+			case "UNSUBSCRIBE":
+				if r.Header.Get("SID") != expectedSID {
+					t.Fatalf("SID: %q", r.Header.Get("SID"))
+				}
+				w.WriteHeader(http.StatusPreconditionFailed)
+			default:
+				t.Fatalf("method: %s", r.Method)
 			}
-			// initial subscribe
-			if r.Header.Get("NT") != "upnp:event" {
-				t.Fatalf("NT: %q", r.Header.Get("NT"))
-			}
-			if r.Header.Get("CALLBACK") == "" {
-				t.Fatalf("missing CALLBACK")
-			}
-			w.Header().Set("SID", "uuid:sub-1")
-			w.Header().Set("TIMEOUT", "Second-60")
-			w.WriteHeader(http.StatusOK)
-		case "UNSUBSCRIBE":
-			if r.Header.Get("SID") != "uuid:sub-1" {
-				t.Fatalf("SID: %q", r.Header.Get("SID"))
-			}
-			w.WriteHeader(http.StatusPreconditionFailed)
-		default:
-			t.Fatalf("method: %s", r.Method)
 		}
-	})
+	}
+
+	mux.HandleFunc(eventAVTransport, handle("uuid:sub-1"))
+	mux.HandleFunc(eventRenderingControl, handle("uuid:sub-rc"))
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -73,5 +78,16 @@ func TestSubscribeRenewUnsubscribe(t *testing.T) {
 	// 412 should be treated as success.
 	if err := c.Unsubscribe(context.Background(), sub2); err != nil {
 		t.Fatalf("Unsubscribe: %v", err)
+	}
+
+	subRC, err := c.SubscribeRenderingControl(context.Background(), "http://127.0.0.1:12345/notify", 0)
+	if err != nil {
+		t.Fatalf("SubscribeRenderingControl: %v", err)
+	}
+	if subRC.SID != "uuid:sub-rc" {
+		t.Fatalf("unexpected rc subscription: %+v", subRC)
+	}
+	if err := c.Unsubscribe(context.Background(), subRC); err != nil {
+		t.Fatalf("Unsubscribe(rc): %v", err)
 	}
 }

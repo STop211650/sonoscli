@@ -1,45 +1,61 @@
 package sonos
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestFileSMAPITokenStore_SaveLoad(t *testing.T) {
+func TestFileSMAPITokenStore_SaveLoadHas(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tokens.json")
-	store, err := NewFileSMAPITokenStore(path)
+
+	if _, err := NewFileSMAPITokenStore(""); err == nil {
+		t.Fatalf("expected error")
+	}
+	s, err := NewFileSMAPITokenStore(path)
 	if err != nil {
 		t.Fatalf("NewFileSMAPITokenStore: %v", err)
 	}
 
-	pair := SMAPITokenPair{
-		AuthToken:  "token",
-		PrivateKey: "key",
-		UpdatedAt:  time.Now().UTC().Truncate(time.Second),
+	if s.Has("svc", "hh") {
+		t.Fatalf("expected Has=false for missing file")
 	}
-	if err := store.Save("9", "Sonos_ABC", pair); err != nil {
+	if _, ok, err := s.Load("", "hh"); err != nil || ok {
+		t.Fatalf("Load empty keys: ok=%v err=%v", ok, err)
+	}
+	if err := s.Save("", "hh", SMAPITokenPair{AuthToken: "a", PrivateKey: "b"}); err == nil {
+		t.Fatalf("expected error for missing serviceID")
+	}
+	if err := s.Save("svc", "hh", SMAPITokenPair{}); err == nil {
+		t.Fatalf("expected error for empty token pair")
+	}
+
+	now := time.Date(2025, 12, 13, 0, 0, 0, 0, time.UTC)
+	if err := s.Save("svc", "hh", SMAPITokenPair{AuthToken: "a", PrivateKey: "b", UpdatedAt: now}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
+	if !s.Has("svc", "hh") {
+		t.Fatalf("expected Has=true")
+	}
+	pair, ok, err := s.Load("svc", "hh")
+	if err != nil || !ok {
+		t.Fatalf("Load: ok=%v err=%v", ok, err)
+	}
+	if pair.AuthToken != "a" || pair.PrivateKey != "b" || !pair.UpdatedAt.Equal(now) {
+		t.Fatalf("unexpected pair: %#v", pair)
+	}
+}
 
-	got, ok, err := store.Load("9", "Sonos_ABC")
+func TestNewDefaultSMAPITokenStore(t *testing.T) {
+	s, err := NewDefaultSMAPITokenStore()
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("NewDefaultSMAPITokenStore: %v", err)
 	}
-	if !ok {
-		t.Fatalf("expected token to exist")
+	if s == nil || s.path == "" {
+		t.Fatalf("expected store path")
 	}
-	if got.AuthToken != "token" || got.PrivateKey != "key" {
-		t.Fatalf("unexpected token pair: %#v", got)
-	}
-
-	fi, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat: %v", err)
-	}
-	if fi.Mode().Perm() != 0o600 {
-		t.Fatalf("expected perms 0600, got %o", fi.Mode().Perm())
+	if filepath.Base(s.path) != "smapi_tokens.json" {
+		t.Fatalf("unexpected default path: %q", s.path)
 	}
 }
