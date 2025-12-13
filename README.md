@@ -1,4 +1,4 @@
-# 🔊 sonoscli — Discover, group, and control Sonos (Spotify included)
+# 🔊 sonoscli — Discover, group, and control Sonos
 
 `sonoscli` is a modern Go CLI to control Sonos speakers over your local network (UPnP/SOAP).
 
