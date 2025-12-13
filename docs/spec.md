@@ -93,6 +93,13 @@ Key services/actions:
 - `sonos queue remove --name "<Room>" <pos>` (1-based)
 - `sonos queue clear --name "<Room>"`
 
+### Scenes
+
+- `sonos scene save <name>` – capture grouping + per-room volume/mute
+- `sonos scene apply <name>` – restore grouping + per-room volume/mute
+- `sonos scene list` – list saved scenes (`--json` supported)
+- `sonos scene delete <name>` – delete a scene
+
 ### Spotify (no Spotify credentials required)
 
 Spotify must already be linked in the Sonos app.

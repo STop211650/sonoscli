@@ -49,6 +49,8 @@ Legend:
   - `sonos scene list`
 - Notes:
   - Needs a config store (file under `~/.config/sonoscli` or similar).
+ - Status:
+   - Implemented in `0.1.6` (grouping + per-room volume/mute; playback state not captured yet).
 
 ## P1 (nice-to-have)
 

@@ -82,6 +82,29 @@ Clear the queue:
 ./sonos queue clear --name "Kitchen"
 ```
 
+## Scenes (presets)
+
+Save a scene (grouping + per-room volume/mute):
+
+```bash
+./sonos scene save "Evening"
+```
+
+Apply a scene later:
+
+```bash
+./sonos scene apply "Evening"
+```
+
+List / delete scenes:
+
+```bash
+./sonos scene list
+./sonos scene delete "Evening"
+```
+
+Scenes are stored in your user config dir as `sonoscli/scenes.json` (e.g. `~/.config/sonoscli/scenes.json` on macOS/Linux).
+
 ## Grouping
 
 Show current groups:

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.6] - 2025-12-13
+
+### Added
+- Scenes (presets) stored under your user config directory:
+  - `sonos scene save <name>`: captures grouping + per-room volume/mute
+  - `sonos scene apply <name>`: restores grouping + per-room volume/mute
+  - `sonos scene list`, `sonos scene delete <name>`
+
 ## [0.1.5] - 2025-12-13
 
 ### Added
