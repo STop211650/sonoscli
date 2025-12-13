@@ -21,6 +21,8 @@ func newSMAPICmd(flags *rootFlags) *cobra.Command {
 	}
 
 	cmd.AddCommand(newSMAPIServicesCmd(flags))
+	cmd.AddCommand(newSMAPICategoriesCmd(flags))
+	cmd.AddCommand(newSMAPIBrowseCmd(flags))
 	cmd.AddCommand(newSMAPIAuthCmd(flags))
 	cmd.AddCommand(newSMAPISearchCmd(flags))
 	return cmd
@@ -100,6 +102,56 @@ func newSMAPIServicesCmd(flags *rootFlags) *cobra.Command {
 	}
 }
 
+func newSMAPICategoriesCmd(flags *rootFlags) *cobra.Command {
+	var serviceName string
+	cmd := &cobra.Command{
+		Use:   "categories",
+		Short: "List SMAPI search categories for a service",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			speaker, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := speaker.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			svc, err := findServiceByName(services, serviceName)
+			if err != nil {
+				return err
+			}
+
+			store, err := sonos.NewDefaultSMAPITokenStore()
+			if err != nil {
+				return err
+			}
+			sm, err := sonos.NewSMAPIClient(ctx, speaker, svc, store)
+			if err != nil {
+				return err
+			}
+			cats, err := sm.SearchCategories(ctx)
+			if err != nil {
+				return err
+			}
+
+			if isJSON(flags) {
+				return writeJSON(cmd, map[string]any{
+					"speakerIP":   speaker.IP,
+					"serviceName": svc.Name,
+					"categories":  cats,
+				})
+			}
+			for _, c := range cats {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
+	return cmd
+}
+
 func newSMAPIAuthCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
@@ -126,7 +178,7 @@ func findServiceByName(services []sonos.MusicServiceDescriptor, name string) (so
 	if exact != nil {
 		return *exact, nil
 	}
-	// Try substring match.
+
 	var matches []sonos.MusicServiceDescriptor
 	for _, s := range services {
 		if strings.Contains(strings.ToLower(s.Name), strings.ToLower(name)) {
@@ -266,11 +318,11 @@ func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
 		doEnqueue   bool
 		index       int
 	)
+
 	cmd := &cobra.Command{
-		Use:   "search <query>",
-		Short: "Search a linked Sonos music service (SMAPI)",
-		Long: "Searches a linked service (e.g. Spotify) via Sonos SMAPI. " +
-			"Does not require Spotify Web API credentials, but may require `sonos smapi auth ...` once per household/service.",
+		Use:          "search <query>",
+		Short:        "Search a linked Sonos music service (SMAPI)",
+		Long:         "Searches a linked service (e.g. Spotify) via Sonos SMAPI. Does not require Spotify Web API credentials.",
 		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -327,7 +379,7 @@ func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
 				if _, ok := sonos.ParseSpotifyRef(ref); !ok {
 					return errors.New("selected result is not a supported Spotify ref: " + ref)
 				}
-				c, err := newSonosEnqueuer(cmd.Context(), flags)
+				c, err := newSonosEnqueuer(ctx, flags)
 				if err != nil {
 					return err
 				}
@@ -367,7 +419,11 @@ func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "INDEX\tTYPE\tTITLE\tID")
 			for i, r := range flat {
-				_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", i+1, r.ItemType, r.Title, r.ID)
+				title := r.Title
+				if title == "" {
+					title = r.Summary
+				}
+				_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", i+1, r.ItemType, title, r.ID)
 			}
 			return w.Flush()
 		},
@@ -379,6 +435,132 @@ func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&doOpen, "open", false, "Open the selected result on Sonos (requires --name/--ip)")
 	cmd.Flags().BoolVar(&doEnqueue, "enqueue", false, "Enqueue the selected result on Sonos (requires --name/--ip)")
 	cmd.Flags().IntVar(&index, "index", 1, "Which search result to use with --open/--enqueue (1-based)")
+
+	return cmd
+}
+
+func newSMAPIBrowseCmd(flags *rootFlags) *cobra.Command {
+	var (
+		serviceName string
+		id          string
+		limit       int
+		recursive   bool
+		doOpen      bool
+		doEnqueue   bool
+		index       int
+	)
+
+	cmd := &cobra.Command{
+		Use:          "browse",
+		Short:        "Browse a music-service container (SMAPI getMetadata)",
+		Long:         "Browses a music service via SMAPI getMetadata. Use `--id root` for the root container, then drill down by passing a returned id.",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if doOpen && doEnqueue {
+				return errors.New("use only one of --open or --enqueue")
+			}
+			if (doOpen || doEnqueue) && flags.IP == "" && flags.Name == "" {
+				return errors.New("--open/--enqueue require --ip or --name")
+			}
+			if index <= 0 {
+				index = 1
+			}
+
+			ctx := cmd.Context()
+			speaker, err := anySpeakerClient(ctx, flags)
+			if err != nil {
+				return err
+			}
+			services, err := speaker.ListAvailableServices(ctx)
+			if err != nil {
+				return err
+			}
+			svc, err := findServiceByName(services, serviceName)
+			if err != nil {
+				return err
+			}
+
+			store, err := sonos.NewDefaultSMAPITokenStore()
+			if err != nil {
+				return err
+			}
+			sm, err := sonos.NewSMAPIClient(ctx, speaker, svc, store)
+			if err != nil {
+				return err
+			}
+
+			res, err := sm.GetMetadata(ctx, id, 0, limit, recursive)
+			if err != nil {
+				return err
+			}
+			flat := append([]sonos.SMAPIItem{}, res.MediaCollection...)
+			flat = append(flat, res.MediaMetadata...)
+			if len(flat) == 0 {
+				return errors.New("no results")
+			}
+
+			if doOpen || doEnqueue {
+				if index > len(flat) {
+					return fmt.Errorf("--index %d out of range (got %d results)", index, len(flat))
+				}
+				selected := flat[index-1]
+				ref := selected.ID
+				if _, ok := sonos.ParseSpotifyRef(ref); !ok {
+					return errors.New("selected result is not a supported Spotify ref: " + ref)
+				}
+				c, err := newSonosEnqueuer(ctx, flags)
+				if err != nil {
+					return err
+				}
+				_, err = c.EnqueueSpotify(ctx, ref, sonos.EnqueueOptions{
+					PlayNow: doOpen,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			if isJSON(flags) {
+				if doOpen || doEnqueue {
+					selected := flat[index-1]
+					return writeJSON(cmd, map[string]any{
+						"speakerIP": speaker.IP,
+						"service":   svc,
+						"browse":    res,
+						"selected":  selected,
+						"action": map[string]any{
+							"enqueue": true,
+							"playNow": doOpen,
+						},
+					})
+				}
+				return writeJSON(cmd, map[string]any{
+					"speakerIP": speaker.IP,
+					"service":   svc,
+					"browse":    res,
+				})
+			}
+
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			_, _ = fmt.Fprintln(w, "INDEX\tTYPE\tTITLE\tID")
+			for i, r := range flat {
+				title := r.Title
+				if title == "" {
+					title = r.Summary
+				}
+				_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", i+1, r.ItemType, title, r.ID)
+			}
+			return w.Flush()
+		},
+	}
+
+	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
+	cmd.Flags().StringVar(&id, "id", "root", "Container/item id to browse (default: root)")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Max results")
+	cmd.Flags().BoolVar(&recursive, "recursive", false, "Recursively browse (service dependent)")
+	cmd.Flags().BoolVar(&doOpen, "open", false, "Open the selected result on Sonos (requires --name/--ip)")
+	cmd.Flags().BoolVar(&doEnqueue, "enqueue", false, "Enqueue the selected result on Sonos (requires --name/--ip)")
+	cmd.Flags().IntVar(&index, "index", 1, "Which result to use with --open/--enqueue (1-based)")
 
 	return cmd
 }

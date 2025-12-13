@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.13] - 2025-12-13
+
+### Added
+- More SMAPI helpers:
+  - `sonos smapi categories --service "Spotify"` to list available search categories for a service.
+  - `sonos smapi browse --service "Spotify" --id root` to browse containers via SMAPI `getMetadata` (drill down by passing returned ids).
+
 ## [0.1.12] - 2025-12-13
 
 ### Added

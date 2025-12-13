@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -262,6 +263,98 @@ func (c *SMAPIClient) Search(ctx context.Context, category, term string, index, 
 	return res, nil
 }
 
+func (c *SMAPIClient) SearchCategories(ctx context.Context) ([]string, error) {
+	m, err := c.searchCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+type SMAPIBrowseResult struct {
+	ID              string      `json:"id"`
+	Index           int         `json:"index"`
+	Count           int         `json:"count"`
+	Total           int         `json:"total"`
+	MediaMetadata   []SMAPIItem `json:"mediaMetadata,omitempty"`
+	MediaCollection []SMAPIItem `json:"mediaCollection,omitempty"`
+}
+
+func (c *SMAPIClient) GetMetadata(ctx context.Context, id string, index, count int, recursive bool) (SMAPIBrowseResult, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		id = "root"
+	}
+	if count <= 0 {
+		count = 50
+	}
+	if index < 0 {
+		index = 0
+	}
+
+	type mediaMetadata struct {
+		ID       string `xml:"id"`
+		ItemType string `xml:"itemType"`
+		Title    string `xml:"title"`
+		MimeType string `xml:"mimeType"`
+		Summary  string `xml:"summary"`
+	}
+	type mediaCollection struct {
+		ID       string `xml:"id"`
+		ItemType string `xml:"itemType"`
+		Title    string `xml:"title"`
+		Summary  string `xml:"summary"`
+	}
+	var out struct {
+		Result struct {
+			Index int               `xml:"index"`
+			Count int               `xml:"count"`
+			Total int               `xml:"total"`
+			MD    []mediaMetadata   `xml:"mediaMetadata"`
+			MC    []mediaCollection `xml:"mediaCollection"`
+		} `xml:"getMetadataResult"`
+	}
+
+	if err := c.smapiCallInto(ctx, "getMetadata", map[string]string{
+		"id":        id,
+		"index":     fmt.Sprintf("%d", index),
+		"count":     fmt.Sprintf("%d", count),
+		"recursive": fmt.Sprintf("%d", boolToInt(recursive)),
+	}, &out, smapiCallOptions{}); err != nil {
+		return SMAPIBrowseResult{}, err
+	}
+
+	res := SMAPIBrowseResult{
+		ID:    id,
+		Index: out.Result.Index,
+		Count: out.Result.Count,
+		Total: out.Result.Total,
+	}
+	for _, md := range out.Result.MD {
+		res.MediaMetadata = append(res.MediaMetadata, SMAPIItem{
+			ID:       strings.TrimSpace(md.ID),
+			ItemType: strings.TrimSpace(md.ItemType),
+			Title:    strings.TrimSpace(md.Title),
+			Summary:  strings.TrimSpace(md.Summary),
+			MimeType: strings.TrimSpace(md.MimeType),
+		})
+	}
+	for _, mc := range out.Result.MC {
+		res.MediaCollection = append(res.MediaCollection, SMAPIItem{
+			ID:       strings.TrimSpace(mc.ID),
+			ItemType: strings.TrimSpace(mc.ItemType),
+			Title:    strings.TrimSpace(mc.Title),
+			Summary:  strings.TrimSpace(mc.Summary),
+		})
+	}
+	return res, nil
+}
+
 func (c *SMAPIClient) searchCategories(ctx context.Context) (map[string]string, error) {
 	if c.searchPrefixMap != nil {
 		return c.searchPrefixMap, nil
@@ -479,7 +572,13 @@ func buildSMAPISOAPEnvelope(method string, args map[string]string, soapHeader st
 	b.WriteString(` xmlns="`)
 	b.WriteString(xmlEscapeAttr(smapiNamespace))
 	b.WriteString(`">`)
-	for k, v := range args {
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := args[k]
 		// SMAPI parameters are generally simple strings.
 		b.WriteString("<")
 		b.WriteString(xmlEscapeTag(k))
@@ -494,6 +593,13 @@ func buildSMAPISOAPEnvelope(method string, args map[string]string, soapHeader st
 	b.WriteString(`>`)
 	b.WriteString(`</s:Body></s:Envelope>`)
 	return []byte(b.String())
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 func extractSOAPBodyFirstChild(raw []byte) ([]byte, error) {

@@ -203,6 +203,76 @@ func TestSMAPI_Search_RequiresAuth(t *testing.T) {
 	}
 }
 
+func TestSMAPI_GetMetadata_Success(t *testing.T) {
+	var seenBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("SOAPACTION"); got != `"http://www.sonos.com/Services/1.1#getMetadata"` {
+			t.Fatalf("unexpected SOAPACTION: %q", got)
+		}
+		b, _ := ioReadAllLimit(r.Body, 1<<20)
+		seenBody = string(b)
+		w.Header().Set("Content-Type", `text/xml; charset="utf-8"`)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <getMetadataResponse xmlns="http://www.sonos.com/Services/1.1">
+      <getMetadataResult>
+        <index>0</index><count>2</count><total>2</total>
+        <mediaCollection>
+          <id>spotify:playlist:pl123</id>
+          <itemType>playlist</itemType>
+          <title>My Playlist</title>
+        </mediaCollection>
+        <mediaMetadata>
+          <id>spotify:track:abc</id>
+          <itemType>track</itemType>
+          <title>Track Title</title>
+          <mimeType>audio/x-spotify</mimeType>
+        </mediaMetadata>
+      </getMetadataResult>
+    </getMetadataResponse>
+  </s:Body>
+</s:Envelope>`))
+	}))
+	defer srv.Close()
+
+	store := newMemTokenStore()
+	if err := store.Save("9", "Sonos_ABC", SMAPITokenPair{AuthToken: "T1", PrivateKey: "K1", UpdatedAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	c := &SMAPIClient{
+		httpClient: srv.Client(),
+		Service: MusicServiceDescriptor{
+			ID:        "9",
+			Name:      "Spotify",
+			SecureURI: srv.URL,
+			Auth:      MusicServiceAuthDeviceLink,
+		},
+		HouseholdID:     "Sonos_ABC",
+		DeviceID:        "DEV",
+		TokenStore:      store,
+		searchPrefixMap: map[string]string{"tracks": "search:track"},
+	}
+
+	res, err := c.GetMetadata(context.Background(), "root", 0, 50, false)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if res.Total != 2 {
+		t.Fatalf("unexpected total: %d", res.Total)
+	}
+	if len(res.MediaCollection) != 1 || res.MediaCollection[0].ID != "spotify:playlist:pl123" {
+		t.Fatalf("unexpected mediaCollection: %#v", res.MediaCollection)
+	}
+	if len(res.MediaMetadata) != 1 || res.MediaMetadata[0].ID != "spotify:track:abc" {
+		t.Fatalf("unexpected mediaMetadata: %#v", res.MediaMetadata)
+	}
+	if !strings.Contains(seenBody, "<token>T1</token>") || !strings.Contains(seenBody, "<key>K1</key>") {
+		t.Fatalf("request missing credentials header: %s", seenBody)
+	}
+}
+
 func ioReadAllLimit(r io.ReadCloser, limit int64) ([]byte, error) {
 	defer r.Close()
 	return io.ReadAll(io.LimitReader(r, limit))

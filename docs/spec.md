@@ -145,8 +145,10 @@ Implementation detail: we generate Sonos-compatible DIDL metadata similar to SoC
 Spotify must be linked in the Sonos app. Some services also require a one-time DeviceLink/AppLink flow.
 
 - `sonos smapi services` – list available services and auth types.
+- `sonos smapi categories --service "Spotify"` – list available search categories for a service.
 - `sonos smapi auth begin|complete --service "Spotify"` – link your account for SMAPI access.
 - `sonos smapi search --service "Spotify" --category tracks "<query>"` – prints canonical Spotify URIs usable with `sonos open` / `sonos enqueue`.
+- `sonos smapi browse --service "Spotify" --id root` – browse containers via SMAPI `getMetadata` (drill down by passing returned ids).
 
 ### Grouping
 

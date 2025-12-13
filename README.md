@@ -252,6 +252,8 @@ Search via Sonos (SMAPI; no Spotify Web API credentials):
 
 ```bash
 ./sonos smapi services
+./sonos smapi categories --service "Spotify"
+./sonos smapi browse --service "Spotify" --id root
 ./sonos smapi auth begin --service "Spotify"
 # open the printed URL in a browser, link your account, then:
 ./sonos smapi auth complete --service "Spotify" --code <linkCode>
