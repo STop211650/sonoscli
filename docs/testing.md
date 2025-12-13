@@ -1,0 +1,158 @@
+# Testing
+
+This document is the manual + semi-automated test plan for `sonoscli`.
+
+Goals:
+- Catch regressions in discovery/topology, grouping, and playback control.
+- Provide a repeatable “does this work on my network?” checklist.
+
+## Prereqs
+
+- Go `1.22+`
+- `golangci-lint` installed (for `make lint` / `pnpm lint`)
+- Sonos speakers reachable on the local network (UDP SSDP + TCP 1400)
+
+## Quick checks (automated)
+
+Run from repo root:
+
+- `pnpm -s build`
+- `pnpm -s format:check`
+- `pnpm -s test`
+- `pnpm -s lint`
+- `make ci`
+
+Expected:
+- All commands exit `0`
+- CI should match `.github/workflows/ci.yml` (`gofmt`, `go vet`, `go test`, `golangci-lint`)
+
+## Live network test plan (manual)
+
+Notes:
+- Some tests change grouping and playback. Prefer using a “test room” (e.g. `Office`).
+- Use `--timeout 10s` if your network is slow.
+
+### 1) CLI basics
+
+- `sonos --version` prints the version (matches `internal/cli/version.go`)
+- `sonos --help` works
+- `sonos <cmd> --help` works for core commands (`discover`, `status`, `group`, `open`, `scene`, `smapi`)
+
+### 2) Discovery + topology
+
+- `sonos discover --timeout 6s`
+  - Expected: prints all visible rooms (name, IP, UUID)
+- `sonos group status`
+  - Expected: prints group coordinators + members
+- `sonos status --name "<room>"`
+  - Expected: prints speaker metadata + playback state
+
+Regression checks:
+- If SSDP multicast fails, discovery should fall back to subnet scan + topology and still find rooms.
+
+### 3) Volume + mute
+
+Pick a room:
+
+- `sonos volume get --name "<room>"`
+- `sonos mute get --name "<room>"`
+- `sonos volume set --name "<room>" 12`
+- `sonos mute on --name "<room>"`
+- `sonos mute off --name "<room>"`
+
+Expected:
+- Values change immediately and `sonos status` reflects the new values.
+
+### 4) Grouping controls
+
+Pick a coordinator room and a second room:
+
+- `sonos group join --name "<member>" --to "<coordinator>"`
+- `sonos group status` shows member under coordinator
+- `sonos group unjoin --name "<member>"`
+- `sonos group status` shows member as its own coordinator
+
+Optional:
+- `sonos group party --name "<coordinator>"` (joins all visible rooms)
+- `sonos group dissolve --name "<coordinator>"` (ungroups all members)
+- `sonos group solo --name "<room>"` (ensures it plays by itself)
+
+### 5) Spotify playback (no Spotify Web API creds)
+
+This uses Sonos queueing (AVTransport) + Spotify share links.
+
+- `sonos open --name "<room>" "https://open.spotify.com/track/<id>"`
+- `sonos open --name "<room>" "https://open.spotify.com/album/<id>"`
+- `sonos enqueue --name "<room>" "spotify:track:<id>"`
+- `sonos next --name "<room>"`
+- `sonos pause --name "<room>"`
+- `sonos play --name "<room>"`
+- `sonos stop --name "<room>"`
+
+Expected:
+- Playback starts, track info updates in `sonos status`
+
+### 6) Queue management
+
+- `sonos queue list --name "<room>"`
+- `sonos queue clear --name "<room>"`
+
+Expected:
+- List shows items when queue is in use
+- Clear empties the queue
+
+### 7) Scenes (grouping + volume presets)
+
+Scenes should only include *visible* rooms (not bonded satellites/subs).
+
+- `sonos scene save __tmp_test`
+- `sonos scene apply __tmp_test`
+- `sonos scene list`
+- `sonos scene delete __tmp_test`
+
+Expected:
+- No `soap http 500` errors on systems with home theater / stereo bonded devices.
+
+### 8) Sonos Favorites
+
+- `sonos favorites list --name "<room>" --timeout 10s`
+- `sonos favorites open --name "<room>" --index 1`
+
+Expected:
+- Lists favorites; plays selected item (if any exist).
+
+### 9) SMAPI (Sonos music services)
+
+SMAPI is Sonos-side browsing/search for linked services (e.g. Spotify). It may require a one-time DeviceLink/AppLink auth flow.
+
+- `sonos smapi services`
+- `sonos smapi categories --service "Spotify"`
+- `sonos smapi search --service "Spotify" --category tracks "miles davis"`
+
+If auth is required:
+- `sonos smapi auth begin --service "Spotify"` (follow the `regUrl` and link code)
+- `sonos smapi auth complete --service "Spotify" --code "<linkCode>"`
+
+Expected:
+- Categories show at least `tracks`, `albums`, `artists`, `playlists` for Spotify.
+- Search returns results after auth is completed.
+
+### 10) Event watching (manual)
+
+- `sonos watch --name "<room>"`
+- Change volume / skip track in another controller/app.
+
+Expected:
+- Events stream in; stop with Ctrl+C.
+
+## Latest run (example record)
+
+Fill this in when doing an end-to-end run.
+
+- Date: `2025-12-13T14:59:25Z`
+- Commit SHA: `6916839319c8241293a340d0b1f91e3fdfe91138`
+- Network: `192.168.0.0/24`
+- Discovery result (rooms found): `Bar, Bedroom, Hallway, Kitchen, Living Room, Master Bathroom, Office, Pantry`
+- Notes/issues:
+  - `sonos smapi search` requires one-time auth on this system (expected): run `sonos smapi auth begin` + `sonos smapi auth complete`.
+  - `sonos favorites list` requires a target via `--name`/`--ip`.
