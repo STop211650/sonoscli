@@ -124,7 +124,7 @@ func newSMAPICategoriesCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			store, err := sonos.NewDefaultSMAPITokenStore()
+			store, err := newSMAPITokenStore()
 			if err != nil {
 				return err
 			}
@@ -222,7 +222,7 @@ func newSMAPIAuthBeginCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			store, err := sonos.NewDefaultSMAPITokenStore()
+			store, err := newSMAPITokenStore()
 			if err != nil {
 				return err
 			}
@@ -283,7 +283,7 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			store, err := sonos.NewDefaultSMAPITokenStore()
+			store, err := newSMAPITokenStore()
 			if err != nil {
 				return err
 			}
@@ -453,7 +453,7 @@ func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			store, err := sonos.NewDefaultSMAPITokenStore()
+			store, err := newSMAPITokenStore()
 			if err != nil {
 				return err
 			}
@@ -583,7 +583,7 @@ func newSMAPIBrowseCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			store, err := sonos.NewDefaultSMAPITokenStore()
+			store, err := newSMAPITokenStore()
 			if err != nil {
 				return err
 			}

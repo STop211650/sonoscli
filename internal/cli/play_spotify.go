@@ -48,7 +48,7 @@ var newSMAPISearcher = func(ctx context.Context, flags *rootFlags, serviceName s
 	if err != nil {
 		return nil, sonos.MusicServiceDescriptor{}, nil, err
 	}
-	store, err := sonos.NewDefaultSMAPITokenStore()
+	store, err := newSMAPITokenStore()
 	if err != nil {
 		return nil, sonos.MusicServiceDescriptor{}, nil, err
 	}
