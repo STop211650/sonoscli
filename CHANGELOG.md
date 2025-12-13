@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.23] - 2025-12-13
+
+### Added
+- `--debug` now enables detailed trace logs for SSDP discovery, topology queries, and SOAP calls to help diagnose flaky networks.
+- `sonos smapi auth complete --wait <duration>` to poll for account-link completion (handles Spotify `NOT_LINKED_RETRY`).
+
 ## [0.1.22] - 2025-12-13
 
 ### Fixed

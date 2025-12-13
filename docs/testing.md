@@ -169,7 +169,7 @@ SMAPI is Sonos-side browsing/search for linked services (e.g. Spotify). It may r
 
 If auth is required:
 - `sonos smapi auth begin --service "Spotify"` (follow the `regUrl` and link code)
-- `sonos smapi auth complete --service "Spotify" --code "<linkCode>"`
+- `sonos smapi auth complete --service "Spotify" --code "<linkCode>" --wait 2m`
 
 Expected:
 - Categories show at least `tracks`, `albums`, `artists`, `playlists` for Spotify.

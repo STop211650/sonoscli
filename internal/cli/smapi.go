@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/steipete/sonoscli/internal/sonos"
@@ -255,6 +257,7 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 		serviceName  string
 		linkCode     string
 		linkDeviceID string
+		wait         time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "complete",
@@ -282,7 +285,9 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			pair, err := sm.CompleteAuthentication(ctx, linkCode, linkDeviceID)
+			pair, err := completeSMAPIAuth(ctx, wait, func(ctx context.Context) (sonos.SMAPITokenPair, error) {
+				return sm.CompleteAuthentication(ctx, linkCode, linkDeviceID)
+			})
 			if err != nil {
 				return err
 			}
@@ -305,8 +310,69 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&serviceName, "service", "Spotify", "Music service name (as shown in `sonos smapi services`)")
 	cmd.Flags().StringVar(&linkCode, "code", "", "Link code from `sonos smapi auth begin`")
 	cmd.Flags().StringVar(&linkDeviceID, "link-device-id", "", "Optional link device id (returned by begin; usually not needed)")
+	cmd.Flags().DurationVar(&wait, "wait", 0, "Wait up to this duration for linking to complete (polls every 2s)")
 	_ = cmd.MarkFlagRequired("code")
 	return cmd
+}
+
+func completeSMAPIAuth(
+	ctx context.Context,
+	wait time.Duration,
+	attempt func(context.Context) (sonos.SMAPITokenPair, error),
+) (sonos.SMAPITokenPair, error) {
+	if wait <= 0 {
+		return attempt(ctx)
+	}
+
+	deadline := time.Now().Add(wait)
+
+	interval := 2 * time.Second
+	if wait < interval {
+		// If the user is waiting only a short time, poll more frequently so the
+		// command can still succeed before the deadline.
+		interval = wait / 5
+		if interval < 10*time.Millisecond {
+			interval = 10 * time.Millisecond
+		}
+	}
+
+	for {
+		pair, err := attempt(ctx)
+		if err == nil {
+			return pair, nil
+		}
+		if !isSMAPILinkPending(err) {
+			return sonos.SMAPITokenPair{}, err
+		}
+		now := time.Now()
+		if now.After(deadline) {
+			return sonos.SMAPITokenPair{}, fmt.Errorf("timed out waiting for service link to complete: %w", err)
+		}
+
+		slog.Debug("smapi auth: waiting for link completion", "err", err.Error())
+
+		sleep := interval
+		if remaining := deadline.Sub(now); remaining < sleep {
+			sleep = remaining
+		}
+		timer := time.NewTimer(sleep)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return sonos.SMAPITokenPair{}, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func isSMAPILinkPending(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Common error from Spotify (and other services) before the user completes linking.
+	// Example: "smapi fault: SOAP-ENV:Server: NOT_LINKED_RETRY"
+	msg := err.Error()
+	return strings.Contains(msg, "NOT_LINKED_RETRY") || strings.Contains(msg, "NOT_LINKED")
 }
 
 func newSMAPISearchCmd(flags *rootFlags) *cobra.Command {
