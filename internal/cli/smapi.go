@@ -290,14 +290,34 @@ func newSMAPIAuthCompleteCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			attempts := 0
+			printedWaitHint := false
 			pair, err := completeSMAPIAuth(ctx, wait, func(ctx context.Context) (sonos.SMAPITokenPair, error) {
-				return sm.CompleteAuthentication(ctx, linkCode, linkDeviceID)
+				attempts++
+				pair, err := sm.CompleteAuthentication(ctx, linkCode, linkDeviceID)
+				if wait > 0 && !isJSON(flags) && isSMAPILinkPending(err) {
+					if !printedWaitHint {
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Waiting for linking to complete...")
+						printedWaitHint = true
+					}
+					// Don't spam; add a dot per retry and a newline occasionally.
+					if attempts%10 == 0 {
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Still waiting...")
+					} else {
+						_, _ = fmt.Fprint(cmd.ErrOrStderr(), ".")
+					}
+				}
+				return pair, err
 			})
 			if err != nil {
 				if isSMAPIInvalidLinkCode(err) {
 					return fmt.Errorf("link code is invalid or expired; re-run `sonos smapi auth begin` and use the new code: %w", err)
 				}
 				return err
+			}
+
+			if printedWaitHint {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
 
 			if isJSON(flags) {
