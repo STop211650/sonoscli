@@ -1,6 +1,11 @@
 package sonos
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestPreferDeviceSet(t *testing.T) {
 	best := map[string]Device{
@@ -41,5 +46,39 @@ func TestPreferDeviceSet(t *testing.T) {
 	}
 	if merged["10.0.0.3"].Name != "Z" {
 		t.Fatalf("expected new key added, got %#v", merged["10.0.0.3"])
+	}
+}
+
+func TestDiscoverFallsBackWhenSSDPDeadlineExceeded(t *testing.T) {
+	origSSDP := ssdpDiscoverFunc
+	origScan := scanAnySpeakerIPFunc
+	origTop := discoverViaTopologyFunc
+	origTopFromIP := discoverViaTopologyFromIPFunc
+	t.Cleanup(func() {
+		ssdpDiscoverFunc = origSSDP
+		scanAnySpeakerIPFunc = origScan
+		discoverViaTopologyFunc = origTop
+		discoverViaTopologyFromIPFunc = origTopFromIP
+	})
+
+	ssdpDiscoverFunc = func(ctx context.Context, timeout time.Duration) ([]ssdpResult, error) {
+		return nil, context.DeadlineExceeded
+	}
+	discoverViaTopologyFunc = func(ctx context.Context, timeout time.Duration, results []ssdpResult, includeInvisible bool) ([]Device, error) {
+		return nil, errors.New("no ssdp candidates")
+	}
+	scanAnySpeakerIPFunc = func(ctx context.Context, timeout time.Duration) (string, error) {
+		return "192.168.1.10", nil
+	}
+	discoverViaTopologyFromIPFunc = func(ctx context.Context, timeout time.Duration, ip string, includeInvisible bool) ([]Device, error) {
+		return []Device{{IP: ip, Name: "Office", UDN: "RINCON_x"}}, nil
+	}
+
+	devs, err := Discover(context.Background(), DiscoverOptions{Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(devs) != 1 || devs[0].Name != "Office" {
+		t.Fatalf("unexpected devices: %#v", devs)
 	}
 }

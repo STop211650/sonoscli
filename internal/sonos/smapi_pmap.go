@@ -1,8 +1,10 @@
 package sonos
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,30 +53,52 @@ type pmapCustomCategory struct {
 }
 
 func parsePresentationMapXML(raw []byte) (map[string]string, error) {
-	var env pmapEnvelope
-	if err := xml.Unmarshal(raw, &env); err != nil {
-		return nil, err
-	}
 	out := map[string]string{}
-	if env.SearchCategories == nil {
+
+	// SearchCategories is often nested somewhere inside the presentation map XML
+	// (e.g. under <PresentationMap type="Search">...). We scan for it rather than
+	// assuming it exists at the root.
+	dec := xml.NewDecoder(bytes.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return out, nil
+			}
+			return nil, err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if se.Name.Local != "SearchCategories" {
+			continue
+		}
+
+		var sc struct {
+			Categories       []pmapCategory       `xml:"Category"`
+			CustomCategories []pmapCustomCategory `xml:"CustomCategory"`
+		}
+		if err := dec.DecodeElement(&sc, &se); err != nil {
+			return nil, err
+		}
+		for _, c := range sc.Categories {
+			id := strings.TrimSpace(c.ID)
+			mapped := strings.TrimSpace(c.MappedID)
+			if mapped == "" {
+				mapped = strings.TrimSpace(c.AltID)
+			}
+			if id != "" && mapped != "" {
+				out[id] = mapped
+			}
+		}
+		for _, c := range sc.CustomCategories {
+			id := strings.TrimSpace(c.StringID)
+			mapped := strings.TrimSpace(c.MappedID)
+			if id != "" && mapped != "" {
+				out[id] = mapped
+			}
+		}
 		return out, nil
 	}
-	for _, c := range env.SearchCategories.Categories {
-		id := strings.TrimSpace(c.ID)
-		mapped := strings.TrimSpace(c.MappedID)
-		if mapped == "" {
-			mapped = strings.TrimSpace(c.AltID)
-		}
-		if id != "" && mapped != "" {
-			out[id] = mapped
-		}
-	}
-	for _, c := range env.SearchCategories.CustomCategories {
-		id := strings.TrimSpace(c.StringID)
-		mapped := strings.TrimSpace(c.MappedID)
-		if id != "" && mapped != "" {
-			out[id] = mapped
-		}
-	}
-	return out, nil
 }

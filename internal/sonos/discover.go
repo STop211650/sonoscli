@@ -18,31 +18,49 @@ type DiscoverOptions struct {
 	IncludeInvisible bool
 }
 
+var (
+	ssdpDiscoverFunc              = ssdpDiscover
+	scanAnySpeakerIPFunc          = scanAnySpeakerIP
+	discoverViaTopologyFunc       = discoverViaTopology
+	discoverViaTopologyFromIPFunc = discoverViaTopologyFromIP
+	fetchDeviceDescriptionFunc    = fetchDeviceDescription
+)
+
 func Discover(ctx context.Context, opts DiscoverOptions) ([]Device, error) {
 	timeout := opts.Timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	opCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	ssdpResults, err := ssdpDiscover(ctx, timeout)
-	if err != nil {
+	ssdpTimeout := 1500 * time.Millisecond
+	if timeout <= 2*time.Second {
+		ssdpTimeout = timeout / 2
+	}
+	if ssdpTimeout <= 0 || ssdpTimeout > timeout {
+		ssdpTimeout = timeout
+	}
+
+	ssdpCtx, cancelSSDP := context.WithTimeout(opCtx, ssdpTimeout)
+	ssdpResults, err := ssdpDiscoverFunc(ssdpCtx, ssdpTimeout)
+	cancelSSDP()
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
 
 	// Prefer the topology-based approach (query one speaker for the full list),
 	// since not every speaker will reliably respond to SSDP M-SEARCH.
-	out, err := discoverViaTopology(ctx, timeout, ssdpResults, opts.IncludeInvisible)
+	out, err := discoverViaTopologyFunc(opCtx, timeout, ssdpResults, opts.IncludeInvisible)
 	if err == nil && len(out) > 0 {
 		return out, nil
 	}
 
 	// SSDP sometimes fails or returns incomplete results on certain networks.
 	// Fall back to finding any reachable Sonos speaker, then query topology.
-	if anyIP, scanErr := scanAnySpeakerIP(ctx, timeout); scanErr == nil && anyIP != "" {
-		out, topErr := discoverViaTopologyFromIP(ctx, timeout, anyIP, opts.IncludeInvisible)
+	if anyIP, scanErr := scanAnySpeakerIPFunc(opCtx, timeout); scanErr == nil && anyIP != "" {
+		out, topErr := discoverViaTopologyFromIPFunc(opCtx, timeout, anyIP, opts.IncludeInvisible)
 		if topErr == nil && len(out) > 0 {
 			return out, nil
 		}
@@ -60,7 +78,7 @@ func Discover(ctx context.Context, opts DiscoverOptions) ([]Device, error) {
 			continue
 		}
 
-		name, udn, ip, err := fetchDeviceDescription(ctx, httpClient, location)
+		name, udn, ip, err := fetchDeviceDescriptionFunc(opCtx, httpClient, location)
 		if err != nil {
 			continue
 		}

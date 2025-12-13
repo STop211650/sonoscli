@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -48,16 +49,21 @@ func ssdpDiscover(ctx context.Context, timeout time.Duration) ([]ssdpResult, err
 	byLocation := map[string]ssdpResult{}
 
 	buf := make([]byte, 64*1024)
+Loop:
 	for {
+		if time.Now().After(deadline) {
+			break
+		}
 		select {
 		case <-ctx.Done():
+			// Treat DeadlineExceeded like a normal timeout so callers can fall back.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				break Loop
+			}
 			return nil, ctx.Err()
 		default:
 		}
 
-		if time.Now().After(deadline) {
-			break
-		}
 		_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on “Keep a Changelog”, and this project aims to follow Semantic Versioning.
 
+## [0.1.20] - 2025-12-13
+
+### Fixed
+- `sonos discover` no longer fails hard when SSDP multicast times out; it now falls back to subnet scan + topology within the overall `--timeout`.
+- `sonos smapi categories` now correctly detects nested `<SearchCategories>` in modern presentation maps (e.g. Spotify), enabling `sonos smapi search`/`sonos play spotify` to use categories like `tracks`.
+
 ## [0.1.19] - 2025-12-13
 
 ### Fixed
