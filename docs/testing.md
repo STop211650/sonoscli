@@ -197,7 +197,7 @@ Expected: prints a completion script to stdout.
 Fill this in when doing an end-to-end run.
 
 - Date: `2025-12-13T16:32:02Z`
-- Commit SHA: `408cd73`
+- Commit SHA: `68b78fa`
 - Network: `192.168.0.0/24`
 - Discovery result (rooms found): `Bar, Bedroom, Hallway, Kitchen, Living Room, Master Bathroom, Office, Pantry`
 - Notes/issues:
@@ -205,6 +205,8 @@ Fill this in when doing an end-to-end run.
   - Verified: `sonos group solo --name Office` isolates `Office` as its own group.
   - Verified: `sonos open --name Office https://open.spotify.com/album/4o9BvaaFDTBLFxzK70GT1E?...` starts playback on **Office only**.
   - Verified: `sonos smapi search --service Spotify --category tracks "gareth emery"` works after one-time auth (`sonos auth smapi begin` + `sonos auth smapi complete --wait ...`).
+  - Verified: `sonos auth smapi begin|complete` appears in help; legacy `sonos smapi auth ...` still works (hidden).
+  - Verified: `sonos watch --name Office --duration 6s` reports `volume_master` changes when `sonos volume set` is called during the watch window.
   - `sonos favorites list` requires a target via `--name`/`--ip`.
   - `sonos discover --all` shows bonded/hidden devices (multiple IPs per room name), which is expected on this system.
   - Verified: `sonos config set defaultRoom Office` makes `--name` optional for commands that require a target.
