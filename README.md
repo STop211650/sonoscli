@@ -442,8 +442,8 @@ https://github.com/SoCo/SoCo
 
 ## Design doc
 
-See `docs/spec.md`.
+See [`docs/spec.md`](docs/spec.md).
 
 ## License
 
-See `LICENSE`.
+MIT License. See [`LICENSE`](LICENSE).
