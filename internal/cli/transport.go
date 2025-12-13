@@ -49,14 +49,14 @@ func newStopCmd(flags *rootFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop playback",
-		Long:  "Sends AVTransport.Stop to the group coordinator.",
+		Long:  "Sends AVTransport.Stop to the group coordinator. Some sources (e.g. TV input) do not support stop, in which case this becomes a no-op.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			c, err := coordinatorClient(ctx, flags)
 			if err != nil {
 				return err
 			}
-			if err := c.Stop(ctx); err != nil {
+			if err := c.StopOrNoop(ctx); err != nil {
 				return err
 			}
 			return writeOK(cmd, flags, "stop", map[string]any{"coordinatorIP": c.IP})

@@ -30,6 +30,20 @@ func (c *Client) Stop(ctx context.Context) error {
 	return err
 }
 
+// StopOrNoop attempts to stop playback. Some sources (e.g. TV input via
+// x-sonos-htastream) reject Stop with UPnP error 701 (Transition not available).
+// In that case, this is treated as a successful no-op.
+func (c *Client) StopOrNoop(ctx context.Context) error {
+	if err := c.Stop(ctx); err != nil {
+		var upnpErr *UPnPError
+		if errors.As(err, &upnpErr) && upnpErr.Code == "701" {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (c *Client) Next(ctx context.Context) error {
 	_, err := c.soapCall(ctx, controlAVTransport, urnAVTransport, "Next", map[string]string{
 		"InstanceID": "0",
