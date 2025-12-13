@@ -1,11 +1,10 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -13,6 +12,25 @@ import (
 	"github.com/steipete/sonoscli/internal/sonos"
 	"github.com/steipete/sonoscli/internal/spotify"
 )
+
+type spotifySearcher interface {
+	Search(ctx context.Context, query string, typ spotify.SearchType, limit int, market string) ([]spotify.Result, error)
+}
+
+type sonosEnqueuer interface {
+	EnqueueSpotify(ctx context.Context, input string, opts sonos.EnqueueOptions) (int, error)
+}
+
+var newSpotifySearcher = func(flags *rootFlags, clientID, clientSecret string) (spotifySearcher, error) {
+	if strings.TrimSpace(clientID) != "" && strings.TrimSpace(clientSecret) != "" {
+		return spotify.New(strings.TrimSpace(clientID), strings.TrimSpace(clientSecret), nil), nil
+	}
+	return spotify.NewFromEnv(nil)
+}
+
+var newSonosEnqueuer = func(ctx context.Context, flags *rootFlags) (sonosEnqueuer, error) {
+	return coordinatorClient(ctx, flags)
+}
 
 func newSearchCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
@@ -41,7 +59,8 @@ func newSearchSpotifyCmd(flags *rootFlags) *cobra.Command {
 		Long: "Searches Spotify via the Spotify Web API (client credentials). " +
 			"Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET (or --client-id/--client-secret). " +
 			"Prints Spotify URIs you can pass to `sonos open` / `sonos enqueue`.",
-		Args: cobra.MinimumNArgs(1),
+		SilenceUsage: true,
+		Args:         cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if doOpen && doEnqueue {
 				return errors.New("use only one of --open or --enqueue")
@@ -59,15 +78,9 @@ func newSearchSpotifyCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 
-			httpClient := &http.Client{Timeout: flags.Timeout}
-			var sp *spotify.Client
-			if strings.TrimSpace(clientID) != "" && strings.TrimSpace(clientSecret) != "" {
-				sp = spotify.New(strings.TrimSpace(clientID), strings.TrimSpace(clientSecret), httpClient)
-			} else {
-				sp, err = spotify.NewFromEnv(httpClient)
-				if err != nil {
-					return err
-				}
+			sp, err := newSpotifySearcher(flags, clientID, clientSecret)
+			if err != nil {
+				return err
 			}
 
 			results, err := sp.Search(cmd.Context(), query, st, limit, market)
@@ -85,7 +98,7 @@ func newSearchSpotifyCmd(flags *rootFlags) *cobra.Command {
 				selected := results[index-1]
 				ref := selected.URI
 
-				c, err := coordinatorClient(cmd.Context(), flags)
+				c, err := newSonosEnqueuer(cmd.Context(), flags)
 				if err != nil {
 					return err
 				}
@@ -103,12 +116,12 @@ func newSearchSpotifyCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			if flags.JSON {
-				enc := json.NewEncoder(os.Stdout)
+				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(results)
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "INDEX\tTYPE\tTITLE\tDETAILS\tURI")
 			for i, r := range results {
 				_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", i+1, r.Type, r.Title, r.Subtitle, r.URI)
