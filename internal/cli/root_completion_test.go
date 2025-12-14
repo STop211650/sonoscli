@@ -127,3 +127,34 @@ func TestNameFlagCompletion_UsesDiskCache(t *testing.T) {
 		t.Fatalf("completions(cache) = %#v, want %#v", got, want)
 	}
 }
+
+func TestNameFlagCompletion_UsesStaleDiskCacheOnDiscoverError(t *testing.T) {
+	origDiscover := sonosDiscover
+	t.Cleanup(func() { sonosDiscover = origDiscover })
+
+	cacheDir := t.TempDir()
+	t.Setenv("SONOSCLI_COMPLETION_CACHE_DIR", cacheDir)
+
+	staleAt := time.Now().Add(-nameCompletionCacheTTL - 1*time.Second)
+	if err := storeNameCompletions(staleAt, []string{"Living Room"}); err != nil {
+		t.Fatalf("store cache: %v", err)
+	}
+
+	sonosDiscover = func(ctx context.Context, opts sonos.DiscoverOptions) ([]sonos.Device, error) {
+		return nil, errors.New("boom")
+	}
+
+	flags := &rootFlags{Timeout: 10 * time.Second}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+
+	completeName := nameFlagCompletion(flags)
+	got, directive := completeName(cmd, nil, "")
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Fatalf("directive = %v, want %v", directive, cobra.ShellCompDirectiveNoFileComp)
+	}
+	want := []string{`Living\ Room`}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("completions(stale cache) = %#v, want %#v", got, want)
+	}
+}

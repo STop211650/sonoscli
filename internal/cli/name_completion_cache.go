@@ -15,29 +15,38 @@ type nameCompletionCacheFile struct {
 	Names     []string  `json:"names"`
 }
 
-func cachedNameCompletions(now time.Time) ([]string, bool) {
+func readNameCompletionCacheFile() (nameCompletionCacheFile, bool) {
 	path, err := nameCompletionCachePath()
 	if err != nil {
-		return nil, false
+		return nameCompletionCacheFile{}, false
 	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, false
+		return nameCompletionCacheFile{}, false
 	}
 	// Avoid large reads if the cache ever gets corrupted.
 	if len(raw) > 64*1024 {
-		return nil, false
+		return nameCompletionCacheFile{}, false
 	}
 
 	var cache nameCompletionCacheFile
 	if err := json.Unmarshal(raw, &cache); err != nil {
+		return nameCompletionCacheFile{}, false
+	}
+	if cache.UpdatedAt.IsZero() || len(cache.Names) == 0 {
+		return nameCompletionCacheFile{}, false
+	}
+
+	return cache, true
+}
+
+func cachedNameCompletions(now time.Time) ([]string, bool) {
+	cache, ok := readNameCompletionCacheFile()
+	if !ok {
 		return nil, false
 	}
-	if cache.UpdatedAt.IsZero() || now.Sub(cache.UpdatedAt) > nameCompletionCacheTTL {
-		return nil, false
-	}
-	if len(cache.Names) == 0 {
+	if now.Sub(cache.UpdatedAt) > nameCompletionCacheTTL {
 		return nil, false
 	}
 	return cache.Names, true
@@ -65,10 +74,22 @@ func storeNameCompletions(now time.Time, names []string) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+
+	f, err := os.CreateTemp(dir, "name-completions-*.json")
+	if err != nil {
 		return err
 	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
+
+	if _, err := f.Write(raw); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+
 	return os.Rename(tmp, path)
 }
 

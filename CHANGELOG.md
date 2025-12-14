@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.1.1] - 2025-12-14
+
+### Added
+- `--name` flag shell completion suggests discovered speaker names (with a short-lived cache). Thanks @javisoto.
+
+### Fixed
+- `--name` completion now falls back to the on-disk cache if discovery fails (even if the cache is slightly stale).
+
 ## [0.1.0] - 2025-12-13
 
 ### Added

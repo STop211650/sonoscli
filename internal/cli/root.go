@@ -128,25 +128,30 @@ func newRootCmd() (*cobra.Command, *rootFlags, error) {
 func nameFlagCompletion(flags *rootFlags) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		timeout := completionTimeoutForFlags(flags)
+		now := time.Now()
 
-		names, ok := cachedNameCompletions(time.Now())
+		names, ok := cachedNameCompletions(now)
 		if !ok {
 			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 			defer cancel()
 
 			devs, err := sonosDiscover(ctx, sonos.DiscoverOptions{Timeout: timeout})
-			if err != nil || len(devs) == 0 {
-				return nil, cobra.ShellCompDirectiveNoFileComp
+			if err == nil && len(devs) > 0 {
+				names = extractDeviceNames(devs)
+				_ = storeNameCompletions(now, names)
+			} else {
+				// Best-effort fallback: if discovery fails, return stale cache rather than nothing.
+				if cache, ok := readNameCompletionCacheFile(); ok {
+					names = cache.Names
+				}
 			}
-
-			names = extractDeviceNames(devs)
-			_ = storeNameCompletions(time.Now(), names)
 		}
 
 		needle := strings.ToLower(strings.TrimSpace(toComplete))
 		seen := map[string]struct{}{}
-		out := make([]string, 0, len(names))
+		filtered := make([]string, 0, len(names))
 		for _, name := range names {
+			name = strings.TrimSpace(name)
 			if name == "" {
 				continue
 			}
@@ -157,9 +162,13 @@ func nameFlagCompletion(flags *rootFlags) func(*cobra.Command, []string, string)
 				continue
 			}
 			seen[name] = struct{}{}
+			filtered = append(filtered, name)
+		}
+		sort.Strings(filtered)
+		out := make([]string, 0, len(filtered))
+		for _, name := range filtered {
 			out = append(out, escapeBashCompletionValue(name))
 		}
-		sort.Strings(out)
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
 }
