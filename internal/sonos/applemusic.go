@@ -159,15 +159,30 @@ func (c *Client) EnqueueAppleMusicFromSMAPI(ctx context.Context, item SMAPIItem,
 		title = item.Title
 	}
 
-	// Determine the item class based on the SMAPI item type
-	itemClass := "object.item.audioItem.musicTrack"
-	if item.ItemType == "album" || item.ItemType == "container" {
+	// Determine the item class and ID prefix based on the SMAPI item type
+	// The prefix is required for Sonos to properly display metadata
+	var itemClass, itemIDPrefix string
+	switch item.ItemType {
+	case "album", "container":
 		itemClass = "object.container.album.musicAlbum"
-	} else if item.ItemType == "playlist" {
+		itemIDPrefix = "1004206c" // Album container prefix
+	case "playlist":
 		itemClass = "object.container.playlistContainer"
+		itemIDPrefix = "1006206c" // Playlist container prefix
+	default: // song/track
+		itemClass = "object.item.audioItem.musicTrack"
+		itemIDPrefix = "10032020" // Track prefix
 	}
 
-	meta := buildShareDIDL(item.ID, title, itemClass, serviceNum)
+	// Build the full item ID with prefix for proper metadata display
+	// The item ID needs URL-encoded colons (%3a) to match Sonos format
+	encodedID := strings.ReplaceAll(item.ID, ":", "%3a")
+	metaItemID := itemIDPrefix + encodedID
+
+	// Apple Music uses service 52231 for metadata descriptors, even though
+	// the URI uses sid=204 for routing. This matches observed Sonos favorites.
+	const appleMusicMetadataService = 52231
+	meta := buildShareDIDL(metaItemID, title, itemClass, appleMusicMetadataService)
 
 	// Construct URI based on item type
 	// Format from Sonos favorites: x-sonos-http:song%3a{ID}.mp4?sid=204&flags=8224&sn=10
